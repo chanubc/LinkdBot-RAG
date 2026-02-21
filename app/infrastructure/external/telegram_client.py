@@ -1,3 +1,4 @@
+import html
 import httpx
 
 from app.config import settings
@@ -91,17 +92,18 @@ class TelegramClient:
     async def send_search_results(self, chat_id: int, query: str, results: list[dict]) -> None:
         """검색 결과 전송."""
         if not results:
-            await self.send_message(chat_id, f"🔍 <b>{query}</b>\n\n저장된 링크 중 관련 내용을 찾지 못했어요.")
+            await self.send_message(chat_id, f"🔍 <b>{html.escape(query)}</b>\n\n저장된 링크 중 관련 내용을 찾지 못했어요.")
             return
 
-        lines = [f"🔍 <b>{query}</b> 검색 결과\n"]
+        lines = [f"🔍 <b>{html.escape(query)}</b> 검색 결과\n"]
         for i, r in enumerate(results, 1):
-            title = r.get("title", "제목 없음")
+            title = html.escape(r.get("title") or "제목 없음")
             url = r.get("url")
             similarity = r.get("similarity", 0)
             line = f"{i}. <b>{title}</b> ({similarity:.0%})"
             if url:
-                line += f"\n    <a href=\"{url}\">{url}</a>"
+                escaped_url = html.escape(url)
+                line += f"\n    <a href=\"{url}\">{escaped_url}</a>"
             lines.append(line)
 
         await self.send_message(chat_id, "\n".join(lines))

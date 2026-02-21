@@ -19,7 +19,7 @@ class LinkRepository:
         keywords: str,
         url: str | None = None,
         memo: str | None = None,
-    ) -> Link:
+    ) -> Link | None:
         """링크/메모 저장. URL이 있으면 중복(user_id + url) 시 None 반환."""
         values = dict(
             user_id=user_id,

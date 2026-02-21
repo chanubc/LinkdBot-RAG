@@ -77,7 +77,13 @@ async def telegram_webhook(
             background_tasks.add_task(link_service.process_link, telegram_id, url, memo)
         return {"ok": True}
 
-    query = text[8:].strip() if text.startswith("/search ") else text.strip()
+    query = text[8:].strip() if text.startswith("/search") else text.strip()
+    if not query and text.startswith("/search"):
+        await telegram.send_message(
+            telegram_id,
+            "검색어를 입력해주세요.\n예시: <code>/search 인공지능</code>",
+        )
+        return {"ok": True}
     if query:
         logger.info("Searching for %s from %s", query, telegram_id)
         results = await link_service.search(telegram_id, query)

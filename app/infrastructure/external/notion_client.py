@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import timezone, datetime
 
 import httpx
 
@@ -80,7 +80,7 @@ class NotionClient:
             "Category": {"select": {"name": category[:100]}},
             "Keywords": {"multi_select": [{"name": kw[:100]} for kw in keywords]},
             "Summary":  {"rich_text": [{"text": {"content": summary[:2000]}}]},
-            "Date":     {"date": {"start": date.today().isoformat()}},
+            "Date":     {"date": {"start": datetime.now(timezone.utc).date().isoformat()}},
         }
         if url:
             properties["URL"] = {"url": url}
