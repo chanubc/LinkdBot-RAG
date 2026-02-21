@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -7,20 +7,24 @@ from app.infrastructure.database import get_db
 from app.infrastructure.external.notion_client import NotionClient
 from app.infrastructure.external.telegram_client import TelegramClient
 from app.infrastructure.repository.user_repository import UserRepository
+from app.infrastructure.state_store import consume as consume_state_token
 
 router = APIRouter()
 
 
 @router.get("/notion/login")
-async def notion_login(telegram_id: int = Query(...)):
+async def notion_login(token: str = Query(...)):
     """Notion OAuth 인증 시작 — Notion 로그인 페이지로 리다이렉트."""
+    telegram_id = consume_state_token(token)
+    if telegram_id is None:
+        raise HTTPException(status_code=400, detail="유효하지 않거나 만료된 링크입니다.")
     url = (
         "https://api.notion.com/v1/oauth/authorize"
         f"?client_id={settings.NOTION_CLIENT_ID}"
         "&response_type=code"
         "&owner=user"
         f"&redirect_uri={settings.NOTION_REDIRECT_URI}"
-        f"&state={telegram_id}"
+        f"&state=tg_{telegram_id}"
     )
     return RedirectResponse(url=url)
 
@@ -32,7 +36,7 @@ async def notion_callback(
     db: AsyncSession = Depends(get_db),
 ):
     """Notion OAuth 콜백 — 토큰 발급 후 DB에 저장."""
-    telegram_id = int(state)
+    telegram_id = int(state.split("_", 1)[1])
     notion = NotionClient()
 
     token_data = await notion.exchange_code(code)

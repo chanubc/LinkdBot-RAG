@@ -81,7 +81,13 @@ def get_agent_service(
 모든 작업은 아래 순서를 따른다:
 
 1. **이슈 생성** — 작업 단위로 GitHub 이슈 생성
-2. **브랜치 생성** — `feat/#이슈번호-설명` 형식
+2. **브랜치 생성** — `develop`을 최신화 후 분기
+   ```bash
+   git checkout develop
+   git pull origin develop
+   git checkout -b feat/#이슈번호-설명
+   ```
+   브랜치 형식 예시:
    ```
    feat/#6-welcome-message
    fix/#7-duplicate-url

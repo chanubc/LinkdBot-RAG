@@ -15,13 +15,8 @@ class TelegramClient:
                 json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"},
             )
 
-    async def send_notion_connect_button(self, chat_id: int, telegram_id: int) -> None:
+    async def send_notion_connect_button(self, chat_id: int, login_url: str) -> None:
         """Notion 연동 인라인 버튼 전송."""
-        # NOTION_REDIRECT_URI: .../auth/notion/callback → .../auth/notion/login
-        login_url = (
-            settings.NOTION_REDIRECT_URI.replace("/callback", "/login")
-            + f"?telegram_id={telegram_id}"
-        )
         async with httpx.AsyncClient() as client:
             await client.post(
                 f"{self._base}/sendMessage",
@@ -40,6 +35,22 @@ class TelegramClient:
                     },
                 },
             )
+
+    async def send_welcome_connected(self, chat_id: int, first_name: str | None = None) -> None:
+        """Notion 이미 연동된 유저에게 사용법 안내 메시지 전송."""
+        name = first_name or "사용자"
+        await self.send_message(
+            chat_id,
+            (
+                f"👋 <b>{name}</b>님, 반갑습니다!\n\n"
+                "Notion 연동이 완료되어 있어요. ✅\n\n"
+                "<b>사용 방법:</b>\n"
+                "• 링크를 채팅창에 붙여넣으면 자동으로 저장돼요\n"
+                "• AI가 요약 · 분류 · 키워드를 추출해드려요\n"
+                "• 저장된 내용은 Notion에도 자동으로 동기화됩니다\n\n"
+                "링크를 보내보세요! 🔗"
+            ),
+        )
 
     async def set_webhook(self, url: str) -> None:
         async with httpx.AsyncClient() as client:

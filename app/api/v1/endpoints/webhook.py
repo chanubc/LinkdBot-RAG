@@ -3,8 +3,11 @@ import re
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
 
-from app.api.dependencies import get_link_service, get_telegram_client
+from app.api.dependencies import get_link_service, get_telegram_client, get_user_repository
+from app.config import settings
 from app.infrastructure.external.telegram_client import TelegramClient
+from app.infrastructure.repository.user_repository import UserRepository
+from app.infrastructure.state_store import create as create_state_token
 from app.services.link_service import LinkService
 
 logger = logging.getLogger(__name__)
@@ -19,6 +22,7 @@ async def telegram_webhook(
     background_tasks: BackgroundTasks,
     link_service: LinkService = Depends(get_link_service),
     telegram: TelegramClient = Depends(get_telegram_client),
+    user_repo: UserRepository = Depends(get_user_repository),
 ):
     """텔레그램 웹훅 수신 엔드포인트."""
     data = await request.json()
@@ -31,7 +35,17 @@ async def telegram_webhook(
     logger.info("Received message from %s: %s", telegram_id, text)
 
     if text.startswith("/start"):
-        await telegram.send_notion_connect_button(telegram_id, telegram_id)
+        user = await user_repo.get_by_telegram_id(telegram_id)
+        if user and user.notion_access_token:
+            first_name: str | None = message.get("from", {}).get("first_name")
+            await telegram.send_welcome_connected(telegram_id, first_name)
+        else:
+            token = create_state_token(telegram_id)
+            login_url = (
+                settings.NOTION_REDIRECT_URI.replace("/callback", "/login")
+                + f"?token={token}"
+            )
+            await telegram.send_notion_connect_button(telegram_id, login_url)
         return {"ok": True}
 
     urls = _URL_RE.findall(text)
