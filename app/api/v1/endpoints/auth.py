@@ -1,6 +1,10 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from app.config import settings
 from app.infrastructure.database import get_db
@@ -49,7 +53,7 @@ async def notion_callback(
         try:
             database_id = await notion.create_database(access_token, page_id)
         except Exception:
-            pass  # DB 생성 실패해도 토큰은 저장
+            logger.exception("Notion DB 생성 실패 (telegram_id=%s)", telegram_id)
 
     user_repo = UserRepository(db)
     await user_repo.upsert_notion_credentials(
