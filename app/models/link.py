@@ -24,11 +24,12 @@ class Link(Base):
         ForeignKey("users.telegram_id", ondelete="CASCADE"),
         nullable=False,
     )
-    url = Column(String, nullable=False)
+    url = Column(String, nullable=True)
     title = Column(String, nullable=False)
     summary = Column(Text, nullable=False)
     category = Column(String, nullable=False)
     keywords = Column(Text, nullable=False)  # JSON 배열 문자열
+    memo = Column(Text, nullable=True)
     is_read = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

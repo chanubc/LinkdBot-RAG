@@ -13,13 +13,14 @@ class LinkRepository:
     async def save_link(
         self,
         user_id: int,
-        url: str,
         title: str,
         summary: str,
         category: str,
         keywords: str,
+        url: str | None = None,
+        memo: str | None = None,
     ) -> Link | None:
-        """링크 저장. 중복(user_id + url)이면 None 반환."""
+        """링크/메모 저장. URL 중복(user_id + url)이면 None 반환."""
         stmt = (
             insert(Link)
             .values(
@@ -29,6 +30,7 @@ class LinkRepository:
                 summary=summary,
                 category=category,
                 keywords=keywords,
+                memo=memo,
             )
             .on_conflict_do_nothing(constraint="uq_user_url")
             .returning(Link)
