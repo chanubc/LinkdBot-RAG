@@ -12,4 +12,3 @@ RUN chmod +x deploy/entrypoint.sh
 EXPOSE 8000
 
 CMD ["deploy/entrypoint.sh"]
-`
