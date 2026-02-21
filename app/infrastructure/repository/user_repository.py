@@ -32,19 +32,19 @@ class UserRepository:
         self,
         telegram_id: int,
         notion_access_token: str,
-        notion_page_id: str | None,
+        notion_database_id: str | None,
     ) -> User:
         """Notion 인증 정보 저장 (토큰 암호화)."""
         encrypted = _fernet.encrypt(notion_access_token.encode()).decode()
         user = await self.get_by_telegram_id(telegram_id)
         if user:
             user.notion_access_token = encrypted
-            user.notion_page_id = notion_page_id
+            user.notion_database_id = notion_database_id
         else:
             user = User(
                 telegram_id=telegram_id,
                 notion_access_token=encrypted,
-                notion_page_id=notion_page_id,
+                notion_database_id=notion_database_id,
             )
             self._db.add(user)
         await self._db.commit()
