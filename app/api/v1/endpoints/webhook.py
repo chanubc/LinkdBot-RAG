@@ -4,8 +4,10 @@ import re
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
 
 from app.api.dependencies import get_link_service, get_telegram_client, get_user_repository
+from app.config import settings
 from app.infrastructure.external.telegram_client import TelegramClient
 from app.infrastructure.repository.user_repository import UserRepository
+from app.infrastructure.state_store import create as create_state_token
 from app.services.link_service import LinkService
 
 logger = logging.getLogger(__name__)
@@ -38,7 +40,12 @@ async def telegram_webhook(
             first_name: str | None = message.get("from", {}).get("first_name")
             await telegram.send_welcome_connected(telegram_id, first_name)
         else:
-            await telegram.send_notion_connect_button(telegram_id, telegram_id)
+            token = create_state_token(telegram_id)
+            login_url = (
+                settings.NOTION_REDIRECT_URI.replace("/callback", "/login")
+                + f"?token={token}"
+            )
+            await telegram.send_notion_connect_button(telegram_id, login_url)
         return {"ok": True}
 
     urls = _URL_RE.findall(text)
