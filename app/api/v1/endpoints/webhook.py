@@ -57,16 +57,21 @@ async def telegram_webhook(
             await telegram.send_notion_connect_button(telegram_id, login_url)
         return {"ok": True}
 
-    if text.startswith("/memo "):
-        memo_text = text[6:].strip()
+    if text.startswith("/memo"):
+        memo_text = text[5:].strip()
         if memo_text:
             logger.info("Processing memo from %s", telegram_id)
             background_tasks.add_task(link_service.process_memo, telegram_id, memo_text)
+        else:
+            await telegram.send_message(
+                telegram_id,
+                "메모 내용을 입력해주세요.\n예시: <code>/memo 오늘 배운 내용</code>",
+            )
         return {"ok": True}
 
     urls = _URL_RE.findall(text)
     if urls:
-        memo = _URL_RE.sub("", text).strip() or None
+        memo = _URL_RE.sub("", text).strip() or None if len(urls) == 1 else None
         for url in urls:
             logger.info("Processing URL from %s: %s", telegram_id, url)
             background_tasks.add_task(link_service.process_link, telegram_id, url, memo)
