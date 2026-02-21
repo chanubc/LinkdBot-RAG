@@ -38,6 +38,14 @@ class TelegramClient:
                 },
             )
 
+    async def answer_callback_query(self, callback_query_id: str) -> None:
+        """콜백 쿼리 응답 (버튼 로딩 스피너 해제)."""
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                f"{self._base}/answerCallbackQuery",
+                json={"callback_query_id": callback_query_id},
+            )
+
     async def send_help_message(self, chat_id: int) -> None:
         """전체 사용법 안내 메시지 전송."""
         await self.send_message(

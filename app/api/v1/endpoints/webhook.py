@@ -28,8 +28,11 @@ async def telegram_webhook(
     data = await request.json()
 
     if callback := data.get("callback_query"):
+        await telegram.answer_callback_query(callback["id"])
         if callback.get("data") == "help":
-            await telegram.send_help_message(callback["from"]["id"])
+            chat_id: int | None = (callback.get("from") or {}).get("id")
+            if chat_id:
+                await telegram.send_help_message(chat_id)
         return {"ok": True}
 
     message = data.get("message") or data.get("channel_post")
