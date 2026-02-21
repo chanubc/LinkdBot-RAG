@@ -58,8 +58,13 @@ async def telegram_webhook(
         return {"ok": True}
 
     urls = _URL_RE.findall(text)
-    for url in urls:
-        logger.info("Processing URL from %s: %s", telegram_id, url)
-        background_tasks.add_task(link_service.process_link, telegram_id, url)
+    if urls:
+        memo = _URL_RE.sub("", text).strip() or None
+        for url in urls:
+            logger.info("Processing URL from %s: %s", telegram_id, url)
+            background_tasks.add_task(link_service.process_link, telegram_id, url, memo)
+    elif text.strip():
+        logger.info("Processing memo from %s", telegram_id)
+        background_tasks.add_task(link_service.process_memo, telegram_id, text.strip())
 
     return {"ok": True}
