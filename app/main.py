@@ -11,7 +11,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="PKCA — Personal Knowledge Copilot Agent",
+    title="LinkdBot-RAG",
     version="1.0.0",
     lifespan=lifespan,
 )

@@ -1,4 +1,4 @@
-# 🧠 PERSONAL KNOWLEDGE COPILOT — CLAUDE GUIDE
+# 🧠 LinkdBot-RAG — CLAUDE GUIDE
 
 ## Project Identity
 

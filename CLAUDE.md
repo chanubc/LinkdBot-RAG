@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-PKCA (Personal Knowledge Copilot Agent) — 사용자가 텔레그램으로 URL을 전송하면 자동으로 스크래핑, AI 분석, 벡터 임베딩 후 Notion에 저장하고 RAG 검색을 제공하는 백엔드 에이전트.
+LinkdBot-RAG — 사용자가 텔레그램으로 URL을 전송하면 자동으로 스크래핑, AI 분석, 벡터 임베딩 후 Notion에 저장하고 RAG 검색을 제공하는 백엔드 에이전트.
 
 **Tech Stack:** Python 3.11+, FastAPI (Async), PostgreSQL (pgvector), SQLAlchemy, OpenAI API, Telegram Bot, Notion API
 
