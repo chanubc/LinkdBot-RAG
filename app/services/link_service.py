@@ -102,47 +102,40 @@ class LinkService:
             )
 
     async def process_memo(self, telegram_id: int, memo: str) -> None:
-        """메모 처리 파이프라인 (URL 없는 텍스트)."""
+        """메모 처리 파이프라인 (URL 없는 텍스트, AI 분석 없이 저장)."""
         await self._telegram.send_message(telegram_id, "📝 메모 저장 중...")
         try:
-            # 1. Analyze
-            analysis = await self._openai.analyze_content(memo)
-            title: str = analysis.get("title") or memo[:50]
-            summary: str = analysis.get("summary", "")
-            category: str = analysis.get("category", "Other")
-            keywords: list[str] = analysis.get("keywords", [])
-            keywords_json = json.dumps(keywords, ensure_ascii=False)
-
-            # 2. DB 저장
+            # 1. DB 저장 (AI 분석 없이)
             user_repo = UserRepository(self._db)
             link_repo = LinkRepository(self._db)
             await user_repo.ensure_exists(telegram_id)
             link = await link_repo.save_link(
                 user_id=telegram_id,
                 url=None,
-                title=title,
-                summary=summary,
-                category=category,
-                keywords=keywords_json,
+                title=memo[:50],
+                summary="",
+                category="Memo",
+                keywords="[]",
                 memo=memo,
             )
 
-            # 3. Embed & chunk 저장
+            # 2. Embed & chunk 저장 (검색을 위해 유지)
             raw_chunks = _split_chunks(memo)
             if raw_chunks:
                 embeddings = await self._openai.embed(raw_chunks)
                 await link_repo.save_chunks(link.id, list(zip(raw_chunks, embeddings)))
 
-            # 4. Notion 저장 (optional)
-            notion_url = await self._save_to_notion(
-                telegram_id, title, summary, category, keywords, url=None, memo=memo
+            # 3. Notion 저장 (optional)
+            await self._save_to_notion(
+                telegram_id, memo[:50], "", "Memo", [], url=None, memo=memo
             )
 
-            # 5. 완료 알림
-            await self._telegram.send_message(
-                telegram_id,
-                _build_done_message(title, category, keywords, summary, notion_url),
-            )
+            # 4. 완료 알림
+            notion_db_url = await self._get_notion_db_url(telegram_id)
+            msg = "✅ 메모 저장 완료!"
+            if notion_db_url:
+                msg += f"\n\n📓 Notion: {notion_db_url}"
+            await self._telegram.send_message(telegram_id, msg)
 
         except Exception as exc:
             await self._telegram.send_message(
@@ -188,6 +181,15 @@ class LinkService:
         if not content:
             raise ValueError("페이지에서 콘텐츠를 추출할 수 없습니다.")
         return content
+
+    async def _get_notion_db_url(self, telegram_id: int) -> str:
+        """유저의 Notion 데이터베이스 URL 반환."""
+        user_repo = UserRepository(self._db)
+        user = await user_repo.get_by_telegram_id(telegram_id)
+        if not user or not user.notion_database_id:
+            return ""
+        db_id = user.notion_database_id.replace("-", "")
+        return f"https://www.notion.so/{db_id}"
 
     async def _save_to_notion(
         self,
