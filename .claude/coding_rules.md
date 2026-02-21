@@ -81,10 +81,10 @@ def get_agent_service(
 모든 작업은 아래 순서를 따른다:
 
 1. **이슈 생성** — 작업 단위로 GitHub 이슈 생성
-2. **브랜치 생성** — `develop`을 최신화 후 분기
+2. **브랜치 생성** — `main`을 최신화 후 분기
    ```bash
-   git checkout develop
-   git pull origin develop
+   git checkout main
+   git pull origin main
    git checkout -b feat/#이슈번호-설명
    ```
    브랜치 형식 예시:
@@ -94,16 +94,15 @@ def get_agent_service(
    chore/#8-update-deps
    ```
 3. **커밋** — `#이슈번호 [prefix] : 메시지`
-4. **PR 생성** — `feat/#N-xxx` → `develop` (배포 없음), 본문에 `Closes #이슈번호` 포함, URL 노출 금지
-5. **머지** — `develop` → `main` PR 머지 시 자동 배포 트리거
+4. **PR 생성** — `feat/#N-xxx` → `main`, 본문에 `Closes #이슈번호` 포함, URL 노출 금지
+5. **머지** — `main` PR 머지 시 자동 배포 트리거
 
 ### 브랜치 전략
 
 ```
-feat/#N-xxx ──→ develop ──→ main
-               (PR, 배포X)  (PR, 자동 배포)
+feat/#N-xxx ──→ main
+               (PR, 자동 배포)
 ```
 
-- `feat/*`, `fix/*`, `chore/*` 등 작업 브랜치는 **develop**으로 PR
-- **develop → main** PR 머지 시에만 GitHub Actions 배포 실행
-- main 직접 커밋은 docs 변경 등 예외적인 경우에만 허용
+- `feat/*`, `fix/*`, `chore/*` 등 작업 브랜치는 **main**으로 PR
+- **main** PR 머지 시 GitHub Actions 배포 자동 실행
