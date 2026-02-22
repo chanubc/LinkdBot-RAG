@@ -27,11 +27,11 @@ def get_user_repository(db: AsyncSession = Depends(get_db)) -> UserRepository:
 
 
 def get_auth_service(
-    db: AsyncSession = Depends(get_db),
     notion: NotionClient = Depends(get_notion_client),
     telegram: TelegramClient = Depends(get_telegram_client),
+    user_repo: UserRepository = Depends(get_user_repository),
 ) -> AuthService:
-    return AuthService(db, notion, telegram)
+    return AuthService(notion, telegram, user_repo)
 
 
 def get_link_service(
