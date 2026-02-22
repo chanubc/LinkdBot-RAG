@@ -6,6 +6,7 @@ from app.infrastructure.external.notion_client import NotionClient
 from app.infrastructure.external.telegram_client import TelegramClient
 from app.infrastructure.llm.openai_client import OpenAIClient
 from app.infrastructure.repository.user_repository import UserRepository
+from app.services.auth_service import AuthService
 from app.services.link_service import LinkService
 
 
@@ -23,6 +24,14 @@ def get_telegram_client() -> TelegramClient:
 
 def get_user_repository(db: AsyncSession = Depends(get_db)) -> UserRepository:
     return UserRepository(db)
+
+
+def get_auth_service(
+    db: AsyncSession = Depends(get_db),
+    notion: NotionClient = Depends(get_notion_client),
+    telegram: TelegramClient = Depends(get_telegram_client),
+) -> AuthService:
+    return AuthService(db, notion, telegram)
 
 
 def get_link_service(
