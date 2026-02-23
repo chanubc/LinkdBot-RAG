@@ -24,10 +24,11 @@ def get_link_repository(db: AsyncSession = Depends(get_db)) -> LinkRepository:
 
 
 def get_link_service(
+    db: AsyncSession = Depends(get_db),
     openai: OpenAIClient = Depends(get_openai_client),
     notion: NotionClient = Depends(get_notion_client),
     telegram: TelegramClient = Depends(get_telegram_client),
     user_repo: UserRepository = Depends(get_user_repository),
     link_repo: LinkRepository = Depends(get_link_repository),
 ) -> LinkService:
-    return LinkService(openai, notion, telegram, user_repo, link_repo)
+    return LinkService(db, openai, notion, telegram, user_repo, link_repo)

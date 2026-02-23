@@ -24,7 +24,7 @@ class UserRepository:
         if not user:
             user = User(telegram_id=telegram_id)
             self._db.add(user)
-            await self._db.commit()
+            await self._db.flush()
             await self._db.refresh(user)
         return user
 

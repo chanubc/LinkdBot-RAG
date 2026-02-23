@@ -1,9 +1,10 @@
 import json
-import re
 
 import httpx
 from bs4 import BeautifulSoup
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.text import split_chunks, extract_urls
 from app.infrastructure.external.notion_client import NotionClient
 from app.infrastructure.external.telegram_client import TelegramClient
 from app.infrastructure.llm.openai_client import OpenAIClient
@@ -11,37 +12,17 @@ from app.infrastructure.repository.link_repository import LinkRepository
 from app.infrastructure.repository.user_repository import UserRepository
 
 
-_URL_RE = re.compile(r"https?://\S+")
-
-
-def _split_chunks(text: str, size: int = 800) -> list[str]:
-    """텍스트를 500~1000자 단위 청크로 분할."""
-    words = text.split()
-    chunks: list[str] = []
-    buf: list[str] = []
-    length = 0
-    for word in words:
-        wl = len(word) + 1
-        if length + wl > size and buf:
-            chunks.append(" ".join(buf))
-            buf, length = [word], wl
-        else:
-            buf.append(word)
-            length += wl
-    if buf:
-        chunks.append(" ".join(buf))
-    return chunks
-
-
 class LinkService:
     def __init__(
         self,
+        db: AsyncSession,
         openai: OpenAIClient,
         notion: NotionClient,
         telegram: TelegramClient,
         user_repo: UserRepository,
         link_repo: LinkRepository,
     ) -> None:
+        self._db = db
         self._openai = openai
         self._notion = notion
         self._telegram = telegram
@@ -83,17 +64,20 @@ class LinkService:
                 return
 
             # 4. Embed & chunk 저장
-            raw_chunks = _split_chunks(content)
+            raw_chunks = split_chunks(content)
             if raw_chunks:
                 embeddings = await self._openai.embed(raw_chunks)
                 await self._link_repo.save_chunks(link.id, list(zip(raw_chunks, embeddings)))
 
-            # 5. Notion 저장 (optional)
+            # 5. 단일 커밋 (ensure_exists + save_link + save_chunks를 하나의 트랜잭션으로 확정)
+            await self._db.commit()
+
+            # 6. Notion 저장 (optional, DB 커밋 이후 외부 API 호출)
             notion_url = await self._save_to_notion(
                 telegram_id, title, summary, category, keywords, url, memo
             )
 
-            # 6. 완료 알림
+            # 7. 완료 알림
             await self._telegram.send_message(
                 telegram_id,
                 _build_done_message(title, category, keywords, summary, notion_url),
@@ -118,17 +102,20 @@ class LinkService:
             )
 
             # 2. Embed & chunk 저장 (검색을 위해 유지)
-            raw_chunks = _split_chunks(memo)
+            raw_chunks = split_chunks(memo)
             if raw_chunks:
                 embeddings = await self._openai.embed(raw_chunks)
                 await self._link_repo.save_chunks(link.id, list(zip(raw_chunks, embeddings)))
 
-            # 3. Notion 저장 (optional) — 실제 저장 성공 여부로 링크 노출 결정
+            # 3. 단일 커밋 (ensure_exists + save_memo + save_chunks를 하나의 트랜잭션으로 확정)
+            await self._db.commit()
+
+            # 4. Notion 저장 (optional, DB 커밋 이후 외부 API 호출) — 실제 저장 성공 여부로 링크 노출 결정
             notion_page_url = await self._save_to_notion(
                 telegram_id, memo[:50], "", "Memo", [], url=None, memo=memo
             )
 
-            # 4. 완료 알림
+            # 5. 완료 알림
             msg = "✅ 메모 저장 완료!"
             if notion_page_url:
                 notion_db_url = await self._get_notion_db_url(telegram_id)
@@ -146,12 +133,6 @@ class LinkService:
         """시맨틱 검색."""
         [embedding] = await self._openai.embed([query])
         return await self._link_repo.search_similar(telegram_id, embedding, top_k)
-
-    def extract_urls(self, text: str) -> tuple[list[str], str | None]:
-        """텍스트에서 URL과 memo 분리. (urls, memo) 반환."""
-        urls = _URL_RE.findall(text)
-        memo = _URL_RE.sub("", text).strip() or None if len(urls) == 1 else None
-        return urls, memo
 
     # ── Private ─────────────────────────────────────────────────────────────
 

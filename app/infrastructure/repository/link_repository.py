@@ -36,7 +36,6 @@ class LinkRepository:
             .returning(Link)
         )
         result = await self._db.execute(stmt)
-        await self._db.commit()
         return result.scalar_one_or_none()
 
     async def save_memo(
@@ -57,7 +56,7 @@ class LinkRepository:
             memo=memo,
         )
         self._db.add(link)
-        await self._db.commit()
+        await self._db.flush()
         await self._db.refresh(link)
         return link
 
@@ -69,7 +68,6 @@ class LinkRepository:
         """청크 + 임베딩 벡터 저장."""
         for content, embedding in chunks:
             self._db.add(Chunk(link_id=link_id, content=content, embedding=embedding))
-        await self._db.commit()
 
     async def search_similar(
         self,
