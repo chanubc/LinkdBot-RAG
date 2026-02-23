@@ -38,7 +38,7 @@ class MemoService:
         await self._telegram.send_message(telegram_id, "📝 메모 저장 중...")
         try:
             # 1. DB 저장 (AI 분석 없이)
-            logger.info(f"[메모 처리 시작fdfdfdffd] 유저: {telegram_id}, 내용: {memo}")
+            logger.info(f"[메모 처리 시작] 유저: {telegram_id}, 내용: {memo}")
             await self._user_repo.ensure_exists(telegram_id)
             link = await self._link_repo.save_memo(
                 user_id=telegram_id,
