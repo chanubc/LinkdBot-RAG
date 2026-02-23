@@ -30,13 +30,13 @@ pip install -r requirements.txt
 
 ## Architecture (Light Clean Architecture)
 
-의존성 방향: **Presentation → Application → Domain → Infrastructure**
+의존성 방향: **Presentation → Services → domain/repositories(Interface) ← infrastructure/repository(Impl)**
 
 - **Presentation (`app/api/`):** FastAPI 라우터. 비즈니스 로직 작성 금지.
-- **Application (`app/services/`):** Agent의 두뇌 역할 및 흐름 제어 (오케스트레이션).
-- **Domain (`app/domain/`):** DB/API 의존성이 없는 순수 비즈니스 로직 (Scoring, Drift 계산).
-- **Infrastructure (`app/infrastructure/`):** DB Repository, 외부 API Client (Notion, Telegram, OpenAI).
-- **DI (Dependency Injection):** FastAPI `Depends`만 사용 (`app/api/dependencies.py`).
+- **Application (`app/services/`):** Agent의 두뇌 역할 및 흐름 제어 (오케스트레이션). Interface 타입으로 의존성 선언.
+- **Domain (`app/domain/`):** DB/API 의존성이 없는 순수 비즈니스 로직 (Scoring, Drift 계산) + **Repository ABC 인터페이스**.
+- **Infrastructure (`app/infrastructure/`):** Repository 구현체, 외부 API Client (Notion, Telegram, OpenAI).
+- **DI (Dependency Injection):** FastAPI `Depends`만 사용 (`app/api/dependencies/`).
 
 ```
 app/
@@ -44,18 +44,29 @@ app/
 │   ├── v1/endpoints/
 │   │   ├── auth.py         # Notion OAuth 흐름
 │   │   └── webhook.py      # Telegram 웹훅 수신
-│   └── dependencies.py     # FastAPI Depends로 DI 주입
+│   └── dependencies/       # FastAPI Depends로 DI 주입
+│       ├── auth_di.py
+│       ├── link_di.py      # get_chunk_repository 포함
+│       └── webhook_di.py
 ├── services/       # Application: 오케스트레이션 (흐름 제어)
 │   ├── link_service.py     # 링크 처리 파이프라인 (Phase 1)
 │   ├── agent_service.py    # RAG 에이전트 두뇌 (Phase 2)
 │   └── report_service.py   # 주간 리포트 스케줄러 (Phase 3)
-├── domain/         # Domain: DB/API 의존성 없는 순수 비즈니스 로직
+├── domain/         # Domain: 순수 로직 + Repository 인터페이스
+│   ├── repositories/       # ABC 인터페이스 (DB 의존 없음)
+│   │   ├── i_user_repository.py
+│   │   ├── i_link_repository.py
+│   │   └── i_chunk_repository.py
+│   ├── text.py             # 순수 텍스트 처리 함수 (split_chunks, extract_urls)
 │   ├── drift.py            # Interest Drift 계산 (Phase 3)
 │   └── scoring.py          # Reactivation Score 계산 (Phase 3)
 ├── infrastructure/ # Infrastructure: 외부 시스템 연동
 │   ├── llm/openai_client.py
 │   ├── external/notion_client.py
-│   └── repository/         # DB Repository
+│   └── repository/         # Repository 구현체 (엔티티별 분리)
+│       ├── user_repository.py
+│       ├── link_repository.py
+│       └── chunk_repository.py
 └── models/         # SQLAlchemy ORM 모델
 ```
 
@@ -89,18 +100,25 @@ app/
 
 ### DI 규칙 (안티패턴 금지)
 
-- `dependencies.py`에 팩토리가 등록된 클래스(`NotionClient`, `TelegramClient`, `UserRepository` 등)는 Service/Endpoint 내부에서 직접 인스턴스화 **금지**
+- `dependencies/`에 팩토리가 등록된 클래스(`NotionClient`, `TelegramClient`, `UserRepository` 등)는 Service/Endpoint 내부에서 직접 인스턴스화 **금지**
 - 모든 의존성은 반드시 `__init__` 파라미터로 주입받을 것
+- **Service는 Interface 타입(`IUserRepository` 등)으로 선언하고, DI 팩토리에서만 concrete class를 생성한다**
 
 ```python
 # ❌ 금지
 async def some_method(self):
     repo = UserRepository(self._db)  # 내부 직접 인스턴스화
 
-# ✅ 올바른 방식
+# ✅ 올바른 방식 — Service는 Interface에 의존
 class SomeService:
-    def __init__(self, user_repo: UserRepository) -> None:
+    def __init__(self, user_repo: IUserRepository) -> None:
         self._user_repo = user_repo  # __init__으로 주입
+
+# ✅ DI 팩토리에서만 concrete class 인스턴스화
+def get_some_service(
+    user_repo: UserRepository = Depends(get_user_repository),
+) -> SomeService:
+    return SomeService(user_repo)
 ```
 
 ## Phase Specs
