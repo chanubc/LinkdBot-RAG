@@ -4,14 +4,26 @@
 
 Use FastAPI Depends.
 
-Example:
+Service는 **Interface 타입**으로 파라미터를 선언하고, DI 팩토리에서 concrete class를 주입한다.
 
 ```python
-def get_agent_service(
-    repo: LinkRepository = Depends(get_repository),
-    llm: LLMClient = Depends(get_llm_client)
-) -> AgentService:
-    return AgentService(repo, llm)
+# ✅ Service — 인터페이스에만 의존
+class LinkService:
+    def __init__(
+        self,
+        link_repo: ILinkRepository,
+        chunk_repo: IChunkRepository,
+    ) -> None: ...
+
+# ✅ DI factory — concrete class 인스턴스화
+def get_chunk_repository(db: AsyncSession = Depends(get_db)) -> ChunkRepository:
+    return ChunkRepository(db)
+
+def get_link_service(
+    link_repo: LinkRepository = Depends(get_link_repository),
+    chunk_repo: ChunkRepository = Depends(get_chunk_repository),
+) -> LinkService:
+    return LinkService(link_repo, chunk_repo)
 ```
 
 ---
@@ -22,12 +34,15 @@ def get_agent_service(
 - No FastAPI imports.
 - No SQLAlchemy imports.
 - No HTTP calls.
+- **Repository interfaces (ABC)는 domain 레이어에 위치** (`app/domain/repositories/`).
 
 ---
 
 ## Repository Rules
 
-- Only database logic.
+- `app/domain/repositories/` — 인터페이스(ABC)만 정의. DB 로직 없음.
+- `app/infrastructure/repository/` — 인터페이스 구현체. DB 로직만.
+- 엔티티별로 Repository를 분리한다 (`LinkRepository`, `ChunkRepository` 등).
 - No business logic.
 - No scoring logic.
 
