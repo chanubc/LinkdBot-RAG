@@ -5,6 +5,7 @@ from app.api.dependencies.auth_di import (
     get_user_repository,
 )
 from app.api.dependencies.link_di import (
+    get_chunk_repository,
     get_link_repository,
     get_link_service,
     get_openai_client,
@@ -18,6 +19,7 @@ __all__ = [
     "get_auth_service",
     "get_openai_client",
     "get_link_repository",
+    "get_chunk_repository",
     "get_link_service",
     "get_webhook_service",
 ]
