@@ -3,7 +3,6 @@ import re
 
 import httpx
 from bs4 import BeautifulSoup
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.external.notion_client import NotionClient
 from app.infrastructure.external.telegram_client import TelegramClient
@@ -37,15 +36,17 @@ def _split_chunks(text: str, size: int = 800) -> list[str]:
 class LinkService:
     def __init__(
         self,
-        db: AsyncSession,
         openai: OpenAIClient,
         notion: NotionClient,
         telegram: TelegramClient,
+        user_repo: UserRepository,
+        link_repo: LinkRepository,
     ) -> None:
-        self._db = db
         self._openai = openai
         self._notion = notion
         self._telegram = telegram
+        self._user_repo = user_repo
+        self._link_repo = link_repo
 
     # ── Public ──────────────────────────────────────────────────────────────
 
@@ -67,10 +68,8 @@ class LinkService:
             keywords_json = json.dumps(keywords, ensure_ascii=False)
 
             # 3. DB 저장
-            user_repo = UserRepository(self._db)
-            link_repo = LinkRepository(self._db)
-            await user_repo.ensure_exists(telegram_id)
-            link = await link_repo.save_link(
+            await self._user_repo.ensure_exists(telegram_id)
+            link = await self._link_repo.save_link(
                 user_id=telegram_id,
                 url=url,
                 title=title,
@@ -87,7 +86,7 @@ class LinkService:
             raw_chunks = _split_chunks(content)
             if raw_chunks:
                 embeddings = await self._openai.embed(raw_chunks)
-                await link_repo.save_chunks(link.id, list(zip(raw_chunks, embeddings)))
+                await self._link_repo.save_chunks(link.id, list(zip(raw_chunks, embeddings)))
 
             # 5. Notion 저장 (optional)
             notion_url = await self._save_to_notion(
@@ -110,10 +109,8 @@ class LinkService:
         await self._telegram.send_message(telegram_id, "📝 메모 저장 중...")
         try:
             # 1. DB 저장 (AI 분석 없이)
-            user_repo = UserRepository(self._db)
-            link_repo = LinkRepository(self._db)
-            await user_repo.ensure_exists(telegram_id)
-            link = await link_repo.save_memo(
+            await self._user_repo.ensure_exists(telegram_id)
+            link = await self._link_repo.save_memo(
                 user_id=telegram_id,
                 title=memo[:50],
                 keywords=json.dumps([], ensure_ascii=False),
@@ -124,7 +121,7 @@ class LinkService:
             raw_chunks = _split_chunks(memo)
             if raw_chunks:
                 embeddings = await self._openai.embed(raw_chunks)
-                await link_repo.save_chunks(link.id, list(zip(raw_chunks, embeddings)))
+                await self._link_repo.save_chunks(link.id, list(zip(raw_chunks, embeddings)))
 
             # 3. Notion 저장 (optional) — 실제 저장 성공 여부로 링크 노출 결정
             notion_page_url = await self._save_to_notion(
@@ -147,9 +144,8 @@ class LinkService:
         self, telegram_id: int, query: str, top_k: int = 5
     ) -> list[dict]:
         """시맨틱 검색."""
-        link_repo = LinkRepository(self._db)
         [embedding] = await self._openai.embed([query])
-        return await link_repo.search_similar(telegram_id, embedding, top_k)
+        return await self._link_repo.search_similar(telegram_id, embedding, top_k)
 
     def extract_urls(self, text: str) -> tuple[list[str], str | None]:
         """텍스트에서 URL과 memo 분리. (urls, memo) 반환."""
@@ -191,8 +187,7 @@ class LinkService:
 
     async def _get_notion_db_url(self, telegram_id: int) -> str:
         """유저의 Notion 데이터베이스 URL 반환."""
-        user_repo = UserRepository(self._db)
-        user = await user_repo.get_by_telegram_id(telegram_id)
+        user = await self._user_repo.get_by_telegram_id(telegram_id)
         if not user or not user.notion_database_id:
             return ""
         db_id = user.notion_database_id.replace("-", "")
@@ -208,9 +203,8 @@ class LinkService:
         url: str | None,
         memo: str | None = None,
     ) -> str:
-        user_repo = UserRepository(self._db)
-        token = await user_repo.get_decrypted_token(telegram_id)
-        user = await user_repo.get_by_telegram_id(telegram_id)
+        token = await self._user_repo.get_decrypted_token(telegram_id)
+        user = await self._user_repo.get_by_telegram_id(telegram_id)
         if not token or not user or not user.notion_database_id:
             return ""
         try:
