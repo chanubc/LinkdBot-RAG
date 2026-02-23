@@ -4,7 +4,7 @@ from fastapi import BackgroundTasks
 
 from app.domain.text import extract_urls
 from app.infrastructure.external.telegram_client import TelegramClient
-from app.infrastructure.repository.user_repository import UserRepository
+from app.domain.repositories.i_user_repository import IUserRepository
 from app.services.auth_service import AuthService
 from app.services.link_service import LinkService
 
@@ -16,7 +16,7 @@ class WebhookService:
         self,
         link_service: LinkService,
         telegram: TelegramClient,
-        user_repo: UserRepository,
+        user_repo: IUserRepository,
         auth_service: AuthService,
     ) -> None:
         self._link_service = link_service

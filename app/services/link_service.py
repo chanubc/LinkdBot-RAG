@@ -4,12 +4,13 @@ import httpx
 from bs4 import BeautifulSoup
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.repositories.i_chunk_repository import IChunkRepository
+from app.domain.repositories.i_link_repository import ILinkRepository
+from app.domain.repositories.i_user_repository import IUserRepository
 from app.domain.text import split_chunks, extract_urls
 from app.infrastructure.external.notion_client import NotionClient
 from app.infrastructure.external.telegram_client import TelegramClient
 from app.infrastructure.llm.openai_client import OpenAIClient
-from app.infrastructure.repository.link_repository import LinkRepository
-from app.infrastructure.repository.user_repository import UserRepository
 
 
 class LinkService:
@@ -19,8 +20,9 @@ class LinkService:
         openai: OpenAIClient,
         notion: NotionClient,
         telegram: TelegramClient,
-        user_repo: UserRepository,
-        link_repo: LinkRepository,
+        user_repo: IUserRepository,
+        link_repo: ILinkRepository,
+        chunk_repo: IChunkRepository,
     ) -> None:
         self._db = db
         self._openai = openai
@@ -28,6 +30,7 @@ class LinkService:
         self._telegram = telegram
         self._user_repo = user_repo
         self._link_repo = link_repo
+        self._chunk_repo = chunk_repo
 
     # ── Public ──────────────────────────────────────────────────────────────
 
@@ -67,7 +70,7 @@ class LinkService:
             raw_chunks = split_chunks(content)
             if raw_chunks:
                 embeddings = await self._openai.embed(raw_chunks)
-                await self._link_repo.save_chunks(link.id, list(zip(raw_chunks, embeddings)))
+                await self._chunk_repo.save_chunks(link.id, list(zip(raw_chunks, embeddings)))
 
             # 5. 단일 커밋 (ensure_exists + save_link + save_chunks를 하나의 트랜잭션으로 확정)
             await self._db.commit()
@@ -105,7 +108,7 @@ class LinkService:
             raw_chunks = split_chunks(memo)
             if raw_chunks:
                 embeddings = await self._openai.embed(raw_chunks)
-                await self._link_repo.save_chunks(link.id, list(zip(raw_chunks, embeddings)))
+                await self._chunk_repo.save_chunks(link.id, list(zip(raw_chunks, embeddings)))
 
             # 3. 단일 커밋 (ensure_exists + save_memo + save_chunks를 하나의 트랜잭션으로 확정)
             await self._db.commit()
@@ -132,7 +135,7 @@ class LinkService:
     ) -> list[dict]:
         """시맨틱 검색."""
         [embedding] = await self._openai.embed([query])
-        return await self._link_repo.search_similar(telegram_id, embedding, top_k)
+        return await self._chunk_repo.search_similar(telegram_id, embedding, top_k)
 
     # ── Private ─────────────────────────────────────────────────────────────
 

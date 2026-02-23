@@ -4,7 +4,7 @@ from app.config import settings
 from app.infrastructure import state_store
 from app.infrastructure.external.notion_client import NotionClient
 from app.infrastructure.external.telegram_client import TelegramClient
-from app.infrastructure.repository.user_repository import UserRepository
+from app.domain.repositories.i_user_repository import IUserRepository
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ class AuthService:
         self,
         notion: NotionClient,
         telegram: TelegramClient,
-        user_repo: UserRepository,
+        user_repo: IUserRepository,
     ) -> None:
         self._notion = notion
         self._telegram = telegram
