@@ -7,6 +7,8 @@ from app.infrastructure.external.telegram_client import TelegramClient
 from app.domain.repositories.i_user_repository import IUserRepository
 from app.services.auth_service import AuthService
 from app.services.link_service import LinkService
+from app.services.memo_service import MemoService
+from app.services.search_service import SearchService
 
 logger = logging.getLogger(__name__)
 
@@ -15,11 +17,15 @@ class WebhookService:
     def __init__(
         self,
         link_service: LinkService,
+        memo_service: MemoService,
+        search_service: SearchService,
         telegram: TelegramClient,
         user_repo: IUserRepository,
         auth_service: AuthService,
     ) -> None:
         self._link_service = link_service
+        self._memo_service = memo_service
+        self._search_service = search_service
         self._telegram = telegram
         self._user_repo = user_repo
         self._auth_service = auth_service
@@ -76,7 +82,7 @@ class WebhookService:
         if memo_text:
             logger.info("Processing memo from %s", telegram_id)
             background_tasks.add_task(
-                self._link_service.process_memo, telegram_id, memo_text
+                self._memo_service.process_memo, telegram_id, memo_text
             )
         else:
             await self._telegram.send_message(
@@ -93,7 +99,7 @@ class WebhookService:
             )
             return
         logger.info("Searching for %s from %s", query, telegram_id)
-        results = await self._link_service.search(telegram_id, query)
+        results = await self._search_service.search(telegram_id, query)
         await self._telegram.send_search_results(telegram_id, query, results)
 
     async def _handle_url(
@@ -114,5 +120,5 @@ class WebhookService:
         if not query:
             return
         logger.info("Searching for %s from %s", query, telegram_id)
-        results = await self._link_service.search(telegram_id, query)
+        results = await self._search_service.search(telegram_id, query)
         await self._telegram.send_search_results(telegram_id, query, results)

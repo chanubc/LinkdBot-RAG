@@ -110,6 +110,8 @@ def get_link_service(
    ```
 3. **커밋** — `#이슈번호 [prefix] : 메시지`
 4. **PR 생성** — `feat/#N-xxx` → `main`, 본문에 `Closes #이슈번호` 포함, URL 노출 금지
+   - PR 제목 형식: `[PREFIX/#이슈번호] 작업 제목`
+   - 예시: `[FEAT/#12] Notion OAuth 콜백 엔드포인트 추가`, `[FIX/#7] 중복 URL 처리 버그 수정`
 5. **머지** — `main` PR 머지 시 자동 배포 트리거
 
 ### 브랜치 전략
