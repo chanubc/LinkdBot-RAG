@@ -35,7 +35,7 @@ class UserRepository(IUserRepository):
         notion_access_token: str,
         notion_database_id: str | None,
     ) -> User:
-        """Notion 인증 정보 저장 (토큰 암호화)."""
+        """Notion 인증 정보 저장 (토큰 암호화). commit은 Service에서 호출."""
         encrypted = _fernet.encrypt(notion_access_token.encode()).decode()
         user = await self.get_by_telegram_id(telegram_id)
         if user:
@@ -48,8 +48,7 @@ class UserRepository(IUserRepository):
                 notion_database_id=notion_database_id,
             )
             self._db.add(user)
-        await self._db.commit()
-        await self._db.refresh(user)
+        await self._db.flush()
         return user
 
     async def get_decrypted_token(self, telegram_id: int) -> str | None:
