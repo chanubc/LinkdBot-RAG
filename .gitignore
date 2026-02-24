@@ -51,8 +51,6 @@ alembic/versions/*.pyc
 *.log
 logs/
 
-# Local test scripts (민감 정보 포함 가능)
-scripts/test_webhook.http
 
 # Claude Code local settings
 .claude/settings.local.json
