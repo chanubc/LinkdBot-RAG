@@ -32,7 +32,9 @@ Layers:
 
 - Keep domain logic pure.
 - Use FastAPI Depends for DI.
-- Avoid over-engineering.
+- **Strict SRP (Single Responsibility Principle):** Prevent 'God Objects'. A service should orchestrate one clear flow, not manage 10 different dependencies.
+- **Decouple External I/O:** Always depend on interfaces (ABC) for external systems (LLM, Telegram, Scraper), NOT concrete classes.
+- Avoid over-engineering, **but do not compromise loose coupling.** (미래를 대비한 불필요한 추상화는 피하되, 현재 필요한 계층 간 분리는 타협하지 않는다.)
 - No circular imports.
 - Keep layers separated.
 
