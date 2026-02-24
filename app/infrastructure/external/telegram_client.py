@@ -39,6 +39,18 @@ class TelegramClient:
                 },
             )
 
+    async def send_link_saved_message(
+        self, chat_id: int, text: str, notion_url: str | None = None
+    ) -> None:
+        """링크 저장 완료 메시지 전송. notion_url이 있으면 인라인 버튼으로 추가."""
+        payload: dict = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+        if notion_url:
+            payload["reply_markup"] = {
+                "inline_keyboard": [[{"text": "📓 Notion에서 보기", "url": notion_url}]]
+            }
+        async with httpx.AsyncClient() as client:
+            await client.post(f"{self._base}/sendMessage", json=payload)
+
     async def answer_callback_query(self, callback_query_id: str) -> None:
         """콜백 버튼 로딩 스피너 해제."""
         async with httpx.AsyncClient() as client:

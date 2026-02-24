@@ -23,7 +23,7 @@ class NotionService:
         if not token or not user or not user.notion_database_id:
             return ""
         try:
-            return await self._notion.create_database_entry(
+            await self._notion.create_database_entry(
                 access_token=token,
                 database_id=user.notion_database_id,
                 title=title,
@@ -33,6 +33,8 @@ class NotionService:
                 url=url,
                 memo=memo,
             )
+            db_id = user.notion_database_id.replace("-", "")
+            return f"https://www.notion.so/{db_id}"
         except Exception:
             return ""
 

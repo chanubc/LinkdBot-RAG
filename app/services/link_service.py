@@ -83,9 +83,10 @@ class LinkService:
             )
 
             # 7. 완료 알림
-            await self._telegram.send_message(
-                telegram_id,
-                _build_done_message(title, category, keywords, summary, notion_url),
+            await self._telegram.send_link_saved_message(
+                chat_id=telegram_id,
+                text=_build_done_message(title, category, keywords, summary),
+                notion_url=notion_url or None,
             )
 
         except Exception as exc:
@@ -99,14 +100,10 @@ def _build_done_message(
     category: str,
     keywords: list[str],
     summary: str,
-    notion_url: str,
 ) -> str:
-    msg = (
+    return (
         f"✅ 저장 완료!\n\n"
         f"📌 <b>{title}</b>\n"
         f"📂 {category}  |  🔑 {', '.join(keywords)}\n\n"
         f"📝 {summary}"
     )
-    if notion_url:
-        msg += f"\n\n📓 Notion: {notion_url}"
-    return msg
