@@ -21,7 +21,7 @@ target_metadata = Base.metadata
 
 
 def get_url() -> str:
-    from app.config import settings
+    from app.core.config import settings
     return settings.DATABASE_URL
 
 
