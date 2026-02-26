@@ -4,6 +4,8 @@ from fastapi import BackgroundTasks
 
 from app.application.agents.knowledge_agent import KnowledgeAgent
 from app.application.services.auth_service import AuthService
+from app.domain.entities.intent import Intent
+from app.domain.repositories.i_router_llm import IRouterLLM
 from app.application.usecases.save_link_usecase import SaveLinkUseCase
 from app.application.usecases.save_memo_usecase import SaveMemoUseCase
 from app.application.usecases.search_usecase import SearchUseCase
@@ -21,6 +23,7 @@ class WebhookService:
         save_memo_uc: SaveMemoUseCase,
         search_uc: SearchUseCase,
         agent_svc: KnowledgeAgent,
+        router_llm: IRouterLLM,
         telegram: ITelegramRepository,
         user_repo: IUserRepository,
         auth_service: AuthService,
@@ -29,6 +32,7 @@ class WebhookService:
         self._save_memo_uc = save_memo_uc
         self._search_uc = search_uc
         self._agent_svc = agent_svc
+        self._router_llm = router_llm
         self._telegram = telegram
         self._user_repo = user_repo
         self._auth_service = auth_service
@@ -142,6 +146,26 @@ class WebhookService:
         query = text.strip()
         if not query:
             return
-        logger.info("Searching for %s from %s", query, telegram_id)
-        results = await self._search_uc.execute(telegram_id, query)
-        await self._telegram.send_search_results(telegram_id, query, results)
+
+        routed = await self._router_llm.route(query)
+        effective_query = routed.query or query
+        logger.info("RouterLLM: '%s' → intent=%s", query, routed.intent)
+
+        if routed.intent == Intent.SEARCH:
+            results = await self._search_uc.execute(telegram_id, effective_query)
+            await self._telegram.send_search_results(telegram_id, effective_query, results)
+        elif routed.intent == Intent.MEMO:
+            await self._telegram.send_message(telegram_id, "📝 메모를 저장하는 중입니다...")
+            await self._save_memo_uc.execute(telegram_id, effective_query)
+        elif routed.intent == Intent.ASK:
+            await self._telegram.send_message(telegram_id, "🤖 답변을 생성하는 중입니다...")
+            await self._agent_svc.handle(telegram_id, effective_query)
+        elif routed.intent == Intent.START:
+            await self._handle_start(telegram_id, {"from": {"id": telegram_id}})
+        elif routed.intent == Intent.HELP:
+            await self._handle_help(telegram_id)
+        else:
+            await self._telegram.send_message(
+                telegram_id,
+                "봇 사용법이 궁금하시면 /help 를 입력해보세요.",
+            )

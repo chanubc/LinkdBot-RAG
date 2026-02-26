@@ -1,10 +1,8 @@
 import json
 import logging
 
-from openai import AsyncOpenAI
-
-from app.core.config import settings
 from app.domain.repositories.i_link_repository import ILinkRepository
+from app.domain.repositories.i_llm_gateway import ILLMGateway
 from app.domain.repositories.i_telegram_repository import ITelegramRepository
 from app.rag.reranker import SimpleReranker
 from app.rag.retriever import HybridRetriever
@@ -58,12 +56,13 @@ class KnowledgeAgent:
         reranker: SimpleReranker,
         link_repo: ILinkRepository,
         telegram: ITelegramRepository,
+        llm: ILLMGateway,
     ) -> None:
         self._retriever = retriever
         self._reranker = reranker
         self._link_repo = link_repo
         self._telegram = telegram
-        self._openai = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        self._llm = llm
 
     async def handle(self, telegram_id: int, query: str) -> None:
         """Function Calling 루프: intent → tool → synthesis → send."""
@@ -80,38 +79,38 @@ class KnowledgeAgent:
                 {"role": "user", "content": query},
             ]
 
-            response = await self._openai.chat.completions.create(
-                model="gpt-4o",
+            msg = await self._llm.chat_completions(
                 messages=messages,
+                model="gpt-4o",
                 tools=_TOOLS,
                 tool_choice="auto",
             )
-            msg = response.choices[0].message
 
-            if not msg.tool_calls:
+            tool_calls = msg.get("tool_calls")
+            if not tool_calls:
                 await self._telegram.send_message(
-                    telegram_id, msg.content or "답변을 생성할 수 없습니다."
+                    telegram_id, msg.get("content") or "답변을 생성할 수 없습니다."
                 )
                 return
 
-            messages.append(msg.model_dump())
-            for tool_call in msg.tool_calls:
+            messages.append(msg)
+            for tool_call in tool_calls:
                 tool_result = await self._execute_tool(
                     telegram_id,
-                    tool_call.function.name,
-                    json.loads(tool_call.function.arguments),
+                    tool_call["function"]["name"],
+                    json.loads(tool_call["function"]["arguments"]),
                 )
                 messages.append({
                     "role": "tool",
-                    "tool_call_id": tool_call.id,
+                    "tool_call_id": tool_call["id"],
                     "content": json.dumps(tool_result, ensure_ascii=False),
                 })
 
-            final_response = await self._openai.chat.completions.create(
-                model="gpt-4o",
+            final_response = await self._llm.chat_completions(
                 messages=messages,
+                model="gpt-4o",
             )
-            answer = final_response.choices[0].message.content or "답변을 생성할 수 없습니다."
+            answer = final_response.get("content") or "답변을 생성할 수 없습니다."
             await self._telegram.send_message(telegram_id, answer)
 
         except Exception as exc:
