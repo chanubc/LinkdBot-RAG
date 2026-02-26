@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 import httpx
 
-from app.config import settings
+from app.core.config import settings
 from app.application.ports.notion_port import NotionPort
 
 _BASE = "https://api.notion.com/v1"

@@ -2,7 +2,7 @@ import logging
 
 from openai import AsyncOpenAI
 
-from app.config import settings
+from app.core.config import settings
 from app.domain.entities.intent import Intent
 from app.domain.repositories.i_router_llm import IRouterLLM, RouterOutput
 

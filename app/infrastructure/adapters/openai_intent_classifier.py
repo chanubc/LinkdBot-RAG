@@ -6,7 +6,7 @@ from app.application.ports.intent_classifier_port import (
     ClassifierOutput,
     IntentClassifierPort,
 )
-from app.config import settings
+from app.core.config import settings
 from app.domain.entities.intent import Intent
 
 logger = logging.getLogger(__name__)

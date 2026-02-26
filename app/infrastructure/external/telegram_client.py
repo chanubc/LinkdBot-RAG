@@ -3,7 +3,7 @@ import logging
 
 import httpx
 
-from app.config import settings
+from app.core.config import settings
 from app.application.ports.telegram_port import TelegramPort
 
 logger = logging.getLogger(__name__)
