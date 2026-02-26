@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
 
 jobs:
   deploy:
@@ -12,13 +16,18 @@ jobs:
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          DEPLOY_BRANCH: ${{ github.event_name == 'pull_request' && github.head_ref || 'main' }}
         with:
           host: ${{ secrets.GCP_HOST }}
           username: ${{ secrets.GCP_USER }}
           key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
           port: 22
+          envs: DEPLOY_BRANCH
           script: |
             cd ~/linkdbot-rag
-            git pull origin main
+            git fetch origin
+            git checkout "$DEPLOY_BRANCH"
+            git pull origin "$DEPLOY_BRANCH"
             docker system prune -f
             docker compose up -d --build
