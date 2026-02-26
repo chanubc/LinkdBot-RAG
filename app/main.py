@@ -4,13 +4,25 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 from app.api.v1.endpoints import auth, search, webhook
+from app.api.dependencies.auth_di import get_telegram_client
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Startup
+    telegram_repo = get_telegram_client()
+    success = await telegram_repo.register_commands()
+    if success:
+        logger.info("✅ Telegram bot commands registered successfully")
+    else:
+        logger.warning("⚠️ Failed to register Telegram bot commands")
+
     yield
+
+    # Shutdown (if needed)
 
 
 app = FastAPI(

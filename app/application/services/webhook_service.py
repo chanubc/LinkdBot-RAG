@@ -49,6 +49,8 @@ class WebhookService:
 
         if text.startswith("/start"):
             await self._handle_start(telegram_id, message)
+        elif text.startswith("/help"):
+            await self._handle_help(telegram_id)
         elif text.startswith("/memo"):
             await self._handle_memo(telegram_id, text, background_tasks)
         elif text.startswith("/ask"):
@@ -79,6 +81,10 @@ class WebhookService:
         else:
             login_url = self._auth_service.create_login_url(telegram_id)
             await self._telegram.send_notion_connect_button(telegram_id, login_url)
+
+    async def _handle_help(self, telegram_id: int) -> None:
+        logger.info("Sending help message to %s", telegram_id)
+        await self._telegram.send_help_message(telegram_id)
 
     async def _handle_memo(
         self, telegram_id: int, text: str, background_tasks: BackgroundTasks

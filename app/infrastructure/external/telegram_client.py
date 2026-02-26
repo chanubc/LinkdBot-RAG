@@ -1,8 +1,12 @@
 import html
+import logging
+
 import httpx
 
 from app.config import settings
 from app.domain.repositories.i_telegram_repository import ITelegramRepository
+
+logger = logging.getLogger(__name__)
 
 
 class TelegramRepository(ITelegramRepository):
@@ -132,3 +136,28 @@ class TelegramRepository(ITelegramRepository):
                 json={"url": url},
             )
             resp.raise_for_status()
+
+    async def register_commands(self) -> bool:
+        """봇 명령어 자동완성 등록 (setMyCommands).
+
+        사용자가 /를 입력할 때 명령어 목록이 자동으로 표시됩니다.
+        """
+        commands = [
+            {"command": "start", "description": "봇 시작 및 Notion 연동"},
+            {"command": "help", "description": "사용법 안내"},
+            {"command": "memo", "description": "메모와 함께 링크 저장"},
+            {"command": "search", "description": "저장된 링크 검색"},
+            {"command": "ask", "description": "AI 에이전트에 질문"},
+        ]
+
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    f"{self._base}/setMyCommands",
+                    json={"commands": commands},
+                )
+                resp.raise_for_status()
+                return True
+        except Exception as e:
+            logger.error("Failed to register Telegram commands: %s", e)
+            return False

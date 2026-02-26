@@ -47,3 +47,8 @@ class ITelegramRepository(ABC):
     async def set_webhook(self, url: str) -> None:
         """Telegram 웹훅 등록."""
         pass
+
+    @abstractmethod
+    async def register_commands(self) -> bool:
+        """봇 명령어 자동완성 등록 (setMyCommands)."""
+        pass
