@@ -5,10 +5,17 @@
 이미 제공했다면 그대로 사용하세요.
 
 ## 2. GitHub 이슈 생성
-아래 명령으로 이슈를 생성하고 이슈 번호를 확인하세요.
+`.github/ISSUE_TEMPLATE/issue_template.md` 형식에 맞춰 이슈를 생성하세요.
 
 ```bash
-gh issue create --title "[FEAT] {기능 설명}" --body "## 목표\n{기능 설명}"
+gh issue create --title "[FEAT] {기능 설명}" --body "$(cat <<'EOF'
+## 📌𝗧𝗮𝘀𝗸
+- [ ] {기능 설명}
+
+## 💡𝗥𝗲𝗳𝗲𝗿𝗲𝗻𝗰𝗲
+
+EOF
+)"
 ```
 
 출력에서 이슈 번호 N을 추출하세요.
@@ -37,4 +44,36 @@ git checkout -b feat/#N-{설명}
 🌿 브랜치: feat/#N-{설명}
 
 이제 작업을 시작하세요.
+```
+
+## 6. 작업 완료 후 PR 생성 (작업 완료 시 별도 실행)
+`.github/PULL_REQUEST_TEMPLATE.md` 형식에 맞춰 PR을 생성하세요.
+
+```bash
+gh pr create --title "[FEAT/#N] {기능 설명}" --body "$(cat <<'EOF'
+## 📌 𝗜𝘀𝘀𝘂𝗲𝘀
+closed #{N}
+
+## 📝 𝗦𝘂𝗺𝗺𝗮𝗿𝘆
+> 변경 사항을 간략히 설명해주세요.
+
+-
+
+## ✅ 𝗖𝗵𝗲𝗰𝗸𝗹𝗶𝘀𝘁
+- [ ] 레이어 간 의존성 방향 준수 (Presentation → Application → Domain ← Infrastructure)
+- [ ] 모든 함수/메서드에 Type Hint 작성
+- [ ] 외부 I/O는 Interface(ABC) 타입으로 의존
+- [ ] DI는 FastAPI Depends만 사용, 내부 직접 인스턴스화 금지
+- [ ] 모든 I/O는 async/await 사용
+
+## 📸 𝗦𝗰𝗿𝗲𝗲𝗻𝘀𝗵𝗼𝘁
+
+| 구현 내용 | 스크린샷 |
+| :-------: | :------: |
+|           |          |
+
+## 💡 𝗥𝗲𝗳𝗲𝗿𝗲𝗻𝗰𝗲
+
+EOF
+)"
 ```
