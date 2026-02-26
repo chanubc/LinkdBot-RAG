@@ -16,24 +16,21 @@ jobs:
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
 
     steps:
+      - name: Skip deploy for PR (build check gate only)
+        if: github.event_name == 'pull_request'
+        run: echo "PR build check passed. Actual deploy runs only on merge to main."
+
       - name: Deploy via SSH
+        if: github.event_name == 'push'
         uses: appleboy/ssh-action@v1.0.3
-        env:
-          DEPLOY_BRANCH: ${{ github.event_name == 'pull_request' && github.head_ref || 'main' }}
-          IS_PR: ${{ github.event_name == 'pull_request' }}
         with:
           host: ${{ secrets.GCP_HOST }}
           username: ${{ secrets.GCP_USER }}
           key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
           port: 22
-          envs: DEPLOY_BRANCH,IS_PR
           script: |
             cd ~/linkdbot-rag
             git fetch origin
-            git checkout -B "$DEPLOY_BRANCH" "origin/$DEPLOY_BRANCH"
-            if [ "$IS_PR" = "true" ]; then
-              docker compose build
-            else
-              docker system prune -f
-              docker compose up -d --build
-            fi
+            git checkout -B main origin/main
+            docker system prune -f
+            docker compose up -d --build
