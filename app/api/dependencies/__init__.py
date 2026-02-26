@@ -1,4 +1,4 @@
-from app.api.dependencies.agent_di import get_agent_service
+from app.api.dependencies.agent_di import get_knowledge_agent
 from app.api.dependencies.auth_di import (
     get_auth_service,
     get_notion_client,
@@ -28,6 +28,6 @@ __all__ = [
     "get_save_link_usecase",
     "get_save_memo_usecase",
     "get_search_usecase",
-    "get_agent_service",
+    "get_knowledge_agent",
     "get_webhook_service",
 ]

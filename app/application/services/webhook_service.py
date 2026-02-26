@@ -2,7 +2,7 @@ import logging
 
 from fastapi import BackgroundTasks
 
-from app.application.services.agent_service import AgentService
+from app.application.agents.knowledge_agent import KnowledgeAgent
 from app.application.services.auth_service import AuthService
 from app.application.usecases.save_link_usecase import SaveLinkUseCase
 from app.application.usecases.save_memo_usecase import SaveMemoUseCase
@@ -20,7 +20,7 @@ class WebhookService:
         save_link_uc: SaveLinkUseCase,
         save_memo_uc: SaveMemoUseCase,
         search_uc: SearchUseCase,
-        agent_svc: AgentService,
+        agent_svc: KnowledgeAgent,
         telegram: ITelegramRepository,
         user_repo: IUserRepository,
         auth_service: AuthService,

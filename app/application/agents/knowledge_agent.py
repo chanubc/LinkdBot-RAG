@@ -49,7 +49,7 @@ _TOOLS = [
 ]
 
 
-class AgentService:
+class KnowledgeAgent:
     """OpenAI Function Calling 기반 AI Agent."""
 
     def __init__(
