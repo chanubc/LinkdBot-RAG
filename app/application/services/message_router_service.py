@@ -5,7 +5,6 @@ from fastapi import BackgroundTasks
 from app.application.ports.agent_port import AgentPort
 from app.application.ports.intent_classifier_port import IntentClassifierPort
 from app.application.ports.telegram_port import TelegramPort
-from app.application.usecases.save_link_usecase import SaveLinkUseCase
 from app.application.usecases.save_memo_usecase import SaveMemoUseCase
 from app.application.usecases.search_usecase import SearchUseCase
 from app.application.services.auth_service import AuthService
@@ -52,74 +51,88 @@ class MessageRouterService:
         if not text.strip():
             return
 
-        # 슬래쉬 명령어는 직접 처리 (Port 거치지 않음)
-        if text.startswith("/start"):
-            await self._handle_start(telegram_id)
-        elif text.startswith("/help"):
-            await self._handle_help(telegram_id)
-        elif text.startswith("/memo"):
-            memo_text = text[5:].strip()
-            if memo_text:
-                await self._telegram.send_message(telegram_id, "📝 메모를 저장하는 중입니다...")
-                if background_tasks:
-                    background_tasks.add_task(self._save_memo_uc.execute, telegram_id, memo_text)
-                else:
-                    await self._save_memo_uc.execute(telegram_id, memo_text)
-            else:
-                await self._telegram.send_message(
-                    telegram_id,
-                    "메모 내용을 입력해주세요.\n예시: <code>/memo 오늘 배운 내용</code>",
-                )
-        elif text.startswith("/ask"):
-            query = text[4:].strip()
-            if query:
-                if background_tasks:
-                    background_tasks.add_task(self._agent.run, telegram_id, query)
-                else:
-                    await self._agent.run(telegram_id, query)
-            else:
-                await self._telegram.send_message(
-                    telegram_id,
-                    "질문을 입력해주세요.\n예시: <code>/ask 머신러닝이란?</code>",
-                )
-        elif text.startswith("/search"):
-            query = text[7:].strip()
-            if query:
-                results = await self._search_uc.execute(telegram_id, query)
-                await self._telegram.send_search_results(telegram_id, query, results)
-            else:
-                await self._telegram.send_message(
-                    telegram_id,
-                    "검색어를 입력해주세요.\n예시: <code>/search 인공지능</code>",
-                )
-        # 일반 텍스트 → Intent 분류 (Port 사용)
-        else:
-            routed = await self._intent_classifier.classify(text)  # Port 사용
-            effective_query = routed.query or text
+        # 슬래쉬 명령어 처리
+        if text.startswith("/"):
+            parts = text.split(maxsplit=1)
+            command = parts[0]
+            payload = parts[1] if len(parts) > 1 else ""
 
-            if routed.intent == Intent.SEARCH:
-                results = await self._search_uc.execute(telegram_id, effective_query)
-                await self._telegram.send_search_results(telegram_id, effective_query, results)
-            elif routed.intent == Intent.MEMO:
-                await self._telegram.send_message(telegram_id, "📝 메모를 저장하는 중입니다...")
-                if background_tasks:
-                    background_tasks.add_task(self._save_memo_uc.execute, telegram_id, effective_query)
-                else:
-                    await self._save_memo_uc.execute(telegram_id, effective_query)
-            elif routed.intent == Intent.ASK:
-                if background_tasks:
-                    background_tasks.add_task(self._agent.run, telegram_id, effective_query)
-                else:
-                    await self._agent.run(telegram_id, effective_query)
-            elif routed.intent == Intent.START:
+            if command == "/start":
                 await self._handle_start(telegram_id)
-            elif routed.intent == Intent.HELP:
+            elif command == "/help":
                 await self._handle_help(telegram_id)
-            else:  # UNKNOWN
-                await self._telegram.send_message(
-                    telegram_id,
-                    "봇 사용법이 궁금하시면 /help 를 입력해보세요.",
-                )
+            elif command == "/memo":
+                await self._process_memo(telegram_id, payload, background_tasks)
+            elif command == "/ask":
+                await self._process_ask(telegram_id, payload, background_tasks)
+            elif command == "/search":
+                await self._process_search(telegram_id, payload)
+            return
+
+        # 일반 텍스트 → Intent 분류 (Port 사용)
+        routed = await self._intent_classifier.classify(text)
+        effective_query = routed.query or text
+
+        if routed.intent == Intent.SEARCH:
+            await self._process_search(telegram_id, effective_query)
+        elif routed.intent == Intent.MEMO:
+            await self._process_memo(telegram_id, effective_query, background_tasks)
+        elif routed.intent == Intent.ASK:
+            await self._process_ask(telegram_id, effective_query, background_tasks)
+        elif routed.intent == Intent.START:
+            await self._handle_start(telegram_id)
+        elif routed.intent == Intent.HELP:
+            await self._handle_help(telegram_id)
+        else:  # UNKNOWN
+            await self._telegram.send_message(
+                telegram_id,
+                "봇 사용법이 궁금하시면 /help 를 입력해보세요.",
+            )
+
+    async def _process_memo(
+        self, telegram_id: int, payload: str, background_tasks: BackgroundTasks | None
+    ) -> None:
+        """메모 저장 처리."""
+        if not payload:
+            await self._telegram.send_message(
+                telegram_id,
+                "메모 내용을 입력해주세요.\n예시: <code>/memo 오늘 배운 내용</code>",
+            )
+            return
+
+        await self._telegram.send_message(telegram_id, "📝 메모를 저장하는 중입니다...")
+        if background_tasks:
+            background_tasks.add_task(self._save_memo_uc.execute, telegram_id, payload)
+        else:
+            await self._save_memo_uc.execute(telegram_id, payload)
+
+    async def _process_ask(
+        self, telegram_id: int, payload: str, background_tasks: BackgroundTasks | None
+    ) -> None:
+        """질문/에이전트 실행 처리."""
+        if not payload:
+            await self._telegram.send_message(
+                telegram_id,
+                "질문을 입력해주세요.\n예시: <code>/ask 머신러닝이란?</code>",
+            )
+            return
+
+        if background_tasks:
+            background_tasks.add_task(self._agent.run, telegram_id, payload)
+        else:
+            await self._agent.run(telegram_id, payload)
+
+    async def _process_search(self, telegram_id: int, payload: str) -> None:
+        """검색 처리."""
+        if not payload:
+            await self._telegram.send_message(
+                telegram_id,
+                "검색어를 입력해주세요.\n예시: <code>/search 인공지능</code>",
+            )
+            return
+
+        results = await self._search_uc.execute(telegram_id, payload)
+        await self._telegram.send_search_results(telegram_id, payload, results)
 
     async def _handle_start(self, telegram_id: int) -> None:
         """시작 명령어 처리."""
