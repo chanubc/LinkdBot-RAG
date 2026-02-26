@@ -9,10 +9,10 @@
 
 ```bash
 gh issue create --title "[FEAT] {기능 설명}" --body "$(cat <<'EOF'
-## 📌𝗧𝗮𝘀𝗸
+## 📌 𝗧𝗮𝘀𝗸
 - [ ] {기능 설명}
 
-## 💡𝗥𝗲𝗳𝗲𝗿𝗲𝗻𝗰𝗲
+## 💡 𝗥𝗲𝗳𝗲𝗿𝗲𝗻𝗰𝗲
 
 EOF
 )"
@@ -76,4 +76,11 @@ closed #{N}
 
 EOF
 )"
+```
+
+## 7. PR 머지
+GitHub UI에서 "Create a merge commit" 선택 후 병합. 또는 CLI:
+
+```bash
+gh pr merge {PR_NUMBER} --merge
 ```
