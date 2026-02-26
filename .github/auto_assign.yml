@@ -1,2 +1,4 @@
 addAssignees: author
-addReviewers: false
+addReviewers: true
+reviewers:
+  - copilot
