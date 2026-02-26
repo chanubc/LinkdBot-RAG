@@ -25,5 +25,5 @@ def split_chunks(text: str, size: int = 800) -> list[str]:
 def extract_urls(text: str) -> tuple[list[str], str | None]:
     """텍스트에서 URL과 memo 분리. (urls, memo) 반환."""
     urls = _URL_RE.findall(text)
-    memo = _URL_RE.sub("", text).strip() or None if len(urls) == 1 else None
+    memo = (_URL_RE.sub("", text).strip() or None) if len(urls) == 1 else None
     return urls, memo

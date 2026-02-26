@@ -94,7 +94,7 @@ class KnowledgeAgent:
                 )
                 return
 
-            messages.append(msg)
+            messages.append(msg.model_dump())
             for tool_call in msg.tool_calls:
                 tool_result = await self._execute_tool(
                     telegram_id,
