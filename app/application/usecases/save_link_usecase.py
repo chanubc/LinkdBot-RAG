@@ -5,10 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.repositories.i_chunk_repository import IChunkRepository
 from app.domain.repositories.i_link_repository import ILinkRepository
-from app.domain.repositories.i_notion_repository import INotionRepository
-from app.domain.repositories.i_openai_repository import IOpenAIRepository
-from app.domain.repositories.i_scraper_repository import IScraperRepository
-from app.domain.repositories.i_telegram_repository import ITelegramRepository
+from app.application.ports.notion_port import NotionPort
+from app.application.ports.openai_llm_port import OpenAILLMPort
+from app.application.ports.scraper_port import ScraperPort
+from app.application.ports.telegram_port import TelegramPort
 from app.domain.repositories.i_user_repository import IUserRepository
 from app.utils.text import split_chunks
 
@@ -22,10 +22,10 @@ class SaveLinkUseCase:
         user_repo: IUserRepository,
         link_repo: ILinkRepository,
         chunk_repo: IChunkRepository,
-        openai: IOpenAIRepository,
-        scraper: IScraperRepository,
-        telegram: ITelegramRepository,
-        notion: INotionRepository,
+        openai: OpenAILLMPort,
+        scraper: ScraperPort,
+        telegram: TelegramPort,
+        notion: NotionPort,
     ) -> None:
         self._db = db
         self._user_repo = user_repo

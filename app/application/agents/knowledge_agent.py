@@ -2,10 +2,10 @@ import json
 import logging
 
 from app.domain.repositories.i_link_repository import ILinkRepository
-from app.domain.repositories.i_llm_gateway import ILLMGateway
-from app.domain.repositories.i_telegram_repository import ITelegramRepository
-from app.rag.reranker import SimpleReranker
-from app.rag.retriever import HybridRetriever
+from app.application.ports.telegram_port import TelegramPort
+from app.application.ports.llm_gateway_port import LLMGatewayPort
+from app.infrastructure.rag.reranker import SimpleReranker
+from app.infrastructure.rag.retriever import HybridRetriever
 
 logger = logging.getLogger(__name__)
 
@@ -55,8 +55,8 @@ class KnowledgeAgent:
         retriever: HybridRetriever,
         reranker: SimpleReranker,
         link_repo: ILinkRepository,
-        telegram: ITelegramRepository,
-        llm: ILLMGateway,
+        telegram: TelegramPort,
+        llm: LLMGatewayPort,
     ) -> None:
         self._retriever = retriever
         self._reranker = reranker

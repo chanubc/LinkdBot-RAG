@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 
 
-class INotionRepository(ABC):
-    """Notion API 통신 인터페이스."""
+class NotionPort(ABC):
+    """Notion API 통신 Port."""
 
     @abstractmethod
     async def exchange_code(self, code: str) -> dict:

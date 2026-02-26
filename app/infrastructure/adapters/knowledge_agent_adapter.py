@@ -1,6 +1,6 @@
 from app.application.agents.knowledge_agent import KnowledgeAgent
 from app.application.ports.agent_port import AgentPort
-from app.domain.repositories.i_telegram_repository import ITelegramRepository
+from app.application.ports.telegram_port import TelegramPort
 
 
 class KnowledgeAgentAdapter(AgentPort):
@@ -9,7 +9,7 @@ class KnowledgeAgentAdapter(AgentPort):
     def __init__(
         self,
         knowledge_agent: KnowledgeAgent,
-        telegram: ITelegramRepository,
+        telegram: TelegramPort,
     ):
         self._knowledge_agent = knowledge_agent
         self._telegram = telegram

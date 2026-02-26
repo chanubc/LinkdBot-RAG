@@ -3,7 +3,7 @@ import logging
 from fastapi import BackgroundTasks
 
 from app.application.services.message_router_service import MessageRouterService
-from app.domain.repositories.i_telegram_repository import ITelegramRepository
+from app.application.ports.telegram_port import TelegramPort
 from app.application.usecases.save_link_usecase import SaveLinkUseCase
 from app.utils.text import extract_urls
 
@@ -19,7 +19,7 @@ class TelegramWebhookHandler:
     def __init__(
         self,
         message_router: MessageRouterService,
-        telegram: ITelegramRepository,
+        telegram: TelegramPort,
         save_link_uc: SaveLinkUseCase,
     ):
         self._message_router = message_router

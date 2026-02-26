@@ -16,7 +16,7 @@ from app.application.services.message_router_service import MessageRouterService
 from app.application.usecases.save_link_usecase import SaveLinkUseCase
 from app.application.usecases.save_memo_usecase import SaveMemoUseCase
 from app.application.usecases.search_usecase import SearchUseCase
-from app.domain.repositories.i_telegram_repository import ITelegramRepository
+from app.application.ports.telegram_port import TelegramPort
 from app.infrastructure.repository.user_repository import UserRepository
 
 
@@ -25,7 +25,7 @@ def get_message_router(
     agent: AgentPort = Depends(get_agent),
     search_uc: SearchUseCase = Depends(get_search_usecase),
     save_memo_uc: SaveMemoUseCase = Depends(get_save_memo_usecase),
-    telegram: ITelegramRepository = Depends(get_telegram_client),
+    telegram: TelegramPort = Depends(get_telegram_client),
     user_repo: UserRepository = Depends(get_user_repository),
     auth_service: AuthService = Depends(get_auth_service),
 ) -> MessageRouterService:
@@ -36,7 +36,7 @@ def get_message_router(
 
 def get_webhook_handler(
     message_router: MessageRouterService = Depends(get_message_router),
-    telegram: ITelegramRepository = Depends(get_telegram_client),
+    telegram: TelegramPort = Depends(get_telegram_client),
     save_link_uc: SaveLinkUseCase = Depends(get_save_link_usecase),
 ) -> TelegramWebhookHandler:
     return TelegramWebhookHandler(message_router, telegram, save_link_uc)

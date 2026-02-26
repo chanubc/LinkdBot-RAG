@@ -58,12 +58,13 @@ def get_message_router(
 ## Domain Rules
 
 - Pure functions only.
-- No FastAPI imports.
-- No SQLAlchemy imports.
-- No HTTP calls.
-- **Repository interfaces (ABC)는 domain 레이어에 위치** (`app/domain/repositories/`).
-- **Entity (Enum, Model)는 domain 레이어에 위치** (`app/domain/entities/`)
-  - 예: `Intent` Enum (SEARCH, MEMO, ASK, START, HELP, UNKNOWN)
+- No FastAPI, SQLAlchemy, HTTP, or External System imports.
+- **Repository interfaces (ABC) only** (`app/domain/repositories/`)
+  - **오직 데이터 저장소만**: Entity 저장/조회 (User, Link, Chunk)
+  - ❌ 외부 API (Telegram, Notion, OpenAI)는 Application Ports로
+- **Entities** (`app/domain/entities/`)
+  - `Intent` Enum (SEARCH, MEMO, ASK, START, HELP, UNKNOWN)
+  - Domain 비즈니스 모델들
 
 ---
 

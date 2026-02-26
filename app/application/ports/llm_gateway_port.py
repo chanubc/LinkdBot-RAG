@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 
 
-class ILLMGateway(ABC):
-    """범용 LLM 호출 인터페이스 (Function Calling, 일반 prompt 등)."""
+class LLMGatewayPort(ABC):
+    """범용 LLM 호출 Port (Function Calling, 일반 prompt 등)."""
 
     @abstractmethod
     async def chat_completions(

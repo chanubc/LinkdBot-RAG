@@ -2,14 +2,14 @@ from fastapi import Depends
 
 from app.api.dependencies.link_di import get_chunk_repository, get_openai_client
 from app.application.usecases.search_usecase import SearchUseCase
-from app.domain.repositories.i_openai_repository import IOpenAIRepository
+from app.application.ports.openai_llm_port import OpenAILLMPort
 from app.infrastructure.repository.chunk_repository import ChunkRepository
-from app.rag.reranker import SimpleReranker
-from app.rag.retriever import HybridRetriever
+from app.infrastructure.rag.reranker import SimpleReranker
+from app.infrastructure.rag.retriever import HybridRetriever
 
 
 def get_retriever(
-    openai: IOpenAIRepository = Depends(get_openai_client),
+    openai: OpenAILLMPort = Depends(get_openai_client),
     chunk_repo: ChunkRepository = Depends(get_chunk_repository),
 ) -> HybridRetriever:
     return HybridRetriever(openai, chunk_repo)

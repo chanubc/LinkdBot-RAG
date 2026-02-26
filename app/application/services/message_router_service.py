@@ -2,12 +2,12 @@ import logging
 
 from app.application.ports.agent_port import AgentPort
 from app.application.ports.intent_classifier_port import IntentClassifierPort
+from app.application.ports.telegram_port import TelegramPort
 from app.application.usecases.save_link_usecase import SaveLinkUseCase
 from app.application.usecases.save_memo_usecase import SaveMemoUseCase
 from app.application.usecases.search_usecase import SearchUseCase
 from app.application.services.auth_service import AuthService
 from app.domain.entities.intent import Intent
-from app.domain.repositories.i_telegram_repository import ITelegramRepository
 from app.domain.repositories.i_user_repository import IUserRepository
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ class MessageRouterService:
         agent: AgentPort,  # Port: AI Agent 실행
         search_uc: SearchUseCase,
         save_memo_uc: SaveMemoUseCase,
-        telegram: ITelegramRepository,
+        telegram: TelegramPort,
         user_repo: IUserRepository,
         auth_service: AuthService,
     ):

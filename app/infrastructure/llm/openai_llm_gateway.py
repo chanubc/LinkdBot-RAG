@@ -3,12 +3,12 @@ import logging
 from openai import AsyncOpenAI
 
 from app.config import settings
-from app.domain.repositories.i_llm_gateway import ILLMGateway
+from app.application.ports.llm_gateway_port import LLMGatewayPort
 
 logger = logging.getLogger(__name__)
 
 
-class OpenAILLMGateway(ILLMGateway):
+class OpenAILLMGateway(LLMGatewayPort):
     """OpenAI API를 통한 범용 LLM 호출 구현체."""
 
     def __init__(self) -> None:

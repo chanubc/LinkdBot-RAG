@@ -1,6 +1,0 @@
-from typing import Protocol
-
-
-class IStateStore(Protocol):
-    def create(self, telegram_id: int) -> str: ...
-    def consume(self, token: str) -> int | None: ...

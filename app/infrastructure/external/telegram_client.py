@@ -4,12 +4,12 @@ import logging
 import httpx
 
 from app.config import settings
-from app.domain.repositories.i_telegram_repository import ITelegramRepository
+from app.application.ports.telegram_port import TelegramPort
 
 logger = logging.getLogger(__name__)
 
 
-class TelegramRepository(ITelegramRepository):
+class TelegramRepository(TelegramPort):
     @property
     def _base(self) -> str:
         return f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}"

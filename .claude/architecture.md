@@ -9,13 +9,18 @@ Application (UseCases + Services + Ports)
     ↓ Depends
 Domain (Pure Logic + Entities)
     ↓ Depends
-RAG (Retrieval Strategy)
-    ↓ Depends
-Infrastructure (Implementations + Adapters)
+Infrastructure (Implementations + Adapters + RAG)
 ```
 
-**의존성 방향:** Presentation → Application → Domain/RAG ← Infrastructure
-**Port/Adapter:** Application Ports ← Infrastructure Adapters (Framework switching enabled)
+**의존성 방향:**
+- Data Flow: Presentation → Application → Domain → Infrastructure
+- Dependency Flow: Presentation → Application (Ports) ← Infrastructure (Adapters)
+
+**Port/Adapter 원칙:**
+- **Repository Interfaces**: Domain (Entity 저장/조회는 도메인 규칙)
+- **Port Interfaces**: Application (외부 시스템 호출은 유스케이스 흐름)
+- **Adapter Implementations**: Infrastructure (기술적 구현)
+- **RAG**: Infrastructure (검색 알고리즘은 도메인이 아님, 구현 전략)
 
 ---
 
@@ -50,13 +55,28 @@ Infrastructure (Implementations + Adapters)
 - MessageRouterService: 메시지 처리 & 라우팅 (Intent classifier Port 사용)
 - 통합 테스트 대상
 
-#### `app/application/ports/` (Port/Adapter 패턴)
-- **IntentClassifierPort**: 메시지 의도 분류 외부 시스템 추상화
-  - 구현체: `OpenAIIntentClassifier` (Infrastructure)
-  - Framework 교체 가능: OpenAI ↔ Anthropic
-- **AgentPort**: AI 에이전트 실행 외부 시스템 추상화
-  - 구현체: `KnowledgeAgentAdapter` (Infrastructure)
-  - Framework 교체 가능: KnowledgeAgent ↔ LangGraph
+#### `app/application/ports/` (Port/Adapter 패턴 - 외부 시스템 계약)
+**의도 분류 & Agent:**
+- **IntentClassifierPort**: 메시지 의도 분류
+  - 구현체: `OpenAIIntentClassifier` (Infrastructure/Adapters)
+- **AgentPort**: AI 에이전트 실행
+  - 구현체: `KnowledgeAgentAdapter` (Infrastructure/Adapters)
+
+**외부 API 통신:**
+- **TelegramPort**: Telegram API
+  - 구현체: `TelegramRepository` (Infrastructure/External)
+- **NotionPort**: Notion API
+  - 구현체: `NotionRepository` (Infrastructure/External)
+- **ScraperPort**: 웹 스크래핑
+  - 구현체: `ScraperRepository` (Infrastructure/External)
+- **OpenAILLMPort**: OpenAI 콘텐츠 분석 & 임베딩
+  - 구현체: `OpenAIRepository` (Infrastructure/LLM)
+
+**LLM & 상태 관리:**
+- **LLMGatewayPort**: 범용 LLM 호출 (Function Calling 등)
+  - 구현체: `OpenAILLMGateway` (Infrastructure/LLM)
+- **StateStorePort**: OAuth state 저장/검증
+  - 구현체: `StateStore` (Infrastructure)
 
 **Port/Adapter 의존성:**
 ```
@@ -95,16 +115,14 @@ def get_intent_classifier() -> IntentClassifierPort:
 ```
 
 ### Domain (`app/domain/`)
-- Pure business logic (no DB/HTTP imports)
-- **Entities** (`app/domain/entities/`) — Domain 비즈니스 개념
-  - `Intent` Enum: 메시지 의도 분류 (SEARCH, MEMO, ASK, START, HELP, UNKNOWN)
+- Pure business logic (no DB/HTTP/External imports)
+- **Entities** (`app/domain/entities/`) — Domain 비즈니스 개념만
+  - `Intent` Enum: 메시지 의도 (SEARCH, MEMO, ASK, START, HELP, UNKNOWN)
 - **Drift calculation** (`drift.py`) — Phase 3
 - **Reactivation scoring** (`scoring.py`) — Phase 3
 - **Repository interfaces (ABC)** — `app/domain/repositories/`
-  - DB: `IUserRepository`, `ILinkRepository`, `IChunkRepository`
-  - External: `ITelegramRepository`, `INotionRepository`, `IScraperRepository`, `IOpenAIRepository`
-- **Port interfaces (ABC)** — `app/domain/repositories/` (또는 `app/application/ports/`)
-  - 외부 시스템: `IntentClassifierPort`, `AgentPort`
+  - **오직 데이터 저장소만**: `IUserRepository`, `ILinkRepository`, `IChunkRepository`
+  - ❌ 외부 API는 Repository가 아님 (Application Ports로 이동됨)
 
 ### RAG (`app/rag/`) — Phase 2
 - **HybridRetriever**: 벡터 + 키워드 검색 조합 (SearchUseCase에서 호출)
@@ -112,22 +130,29 @@ def get_intent_classifier() -> IntentClassifierPort:
 - Domain과 Infrastructure 사이의 검색 전략 계층
 
 ### Infrastructure (`app/infrastructure/`)
-- **Repository** (`app/infrastructure/repository/`): Domain Interface 구현체
+- **Repository** (`repository/`) — Domain Repository Interface 구현
   - `UserRepository(IUserRepository)`
   - `LinkRepository(ILinkRepository)`
   - `ChunkRepository(IChunkRepository)`
-- **Adapters** (`app/infrastructure/adapters/`) — Port 구현체
-  - `OpenAIIntentClassifier(IntentClassifierPort)`: OpenAI Structured Output으로 Intent 분류
-  - `KnowledgeAgentAdapter(AgentPort)`: KnowledgeAgent 래핑 (Telegram 알림 추가)
-- **LLM**: `app/infrastructure/llm/`
-  - `openai_client.py` (IOpenAIRepository 구현)
-  - `openai_llm_gateway.py` (ILLMGateway 구현, Function Calling용)
-  - `router_llm.py` (RouterLLMImpl, Legacy)
-- **External**: `app/infrastructure/external/`
-  - `telegram_client.py` (ITelegramRepository 구현)
-  - `notion_client.py` (INotionRepository 구현)
-  - `scraper_client.py` (IScraperRepository 구현)
-- **Database**: `app/infrastructure/database.py` (AsyncSession, DB 연결)
+
+- **Adapters** (`adapters/`) — Application Port 구현
+  - `OpenAIIntentClassifier(IntentClassifierPort)`: OpenAI Structured Output
+  - `KnowledgeAgentAdapter(AgentPort)`: KnowledgeAgent 래핑
+
+- **LLM** (`llm/`) — OpenAI 구현체
+  - `openai_client.py` → `OpenAIRepository(OpenAILLMPort)`
+  - `openai_llm_gateway.py` → `OpenAILLMGateway(LLMGatewayPort)`
+
+- **External** (`external/`) — 외부 API 포트 구현
+  - `telegram_client.py` → `TelegramRepository(TelegramPort)`
+  - `notion_client.py` → `NotionRepository(NotionPort)`
+  - `scraper_client.py` → `ScraperRepository(ScraperPort)`
+
+- **RAG** (`rag/`) — 검색 알고리즘 구현 (Infrastructure 범위)
+  - `retriever.py` → `HybridRetriever` (벡터+키워드 검색)
+  - `reranker.py` → `SimpleReranker` (결과 재정렬)
+
+- **Database**: `database.py` (AsyncSession)
 
 ### Core & Utils (계층 무관)
 - `app/core/config.py`: 환경변수 Settings
@@ -157,46 +182,48 @@ app/
 │   │   ├── save_link_usecase.py
 │   │   ├── save_memo_usecase.py
 │   │   └── search_usecase.py
-│   ├── ports/              # Port 인터페이스 (NEW)
+│   ├── ports/              # Port 인터페이스 (외부 시스템 계약)
 │   │   ├── intent_classifier_port.py
-│   │   └── agent_port.py
-│   └── services/           # UseCase 밖의 오케스트레이션
-│       ├── auth_service.py
-│       ├── telegram_webhook_handler.py  # 웹훅 수신만 담당
-│       ├── message_router_service.py     # 메시지 라우팅 + Intent 분류
-│       └── agent_service.py
+│   │   ├── agent_port.py
+│   │   ├── telegram_port.py
+│   │   ├── notion_port.py
+│   │   ├── scraper_port.py
+│   │   ├── openai_llm_port.py
+│   │   ├── llm_gateway_port.py
+│   │   └── state_store_port.py
+│   ├── services/           # UseCase 밖의 오케스트레이션
+│   │   ├── auth_service.py
+│   │   ├── telegram_webhook_handler.py  # 웹훅 수신만 담당
+│   │   ├── message_router_service.py     # 메시지 라우팅 + Intent 분류
+│   │   └── agent_service.py (또는 knowledge_agent.py)
+│   └── agents/
+│       └── knowledge_agent.py       # OpenAI Function Calling Agent
 │
-├── rag/                    # 검색 전략 (Phase 2)
-│   ├── retriever.py        # Hybrid Retrieval
-│   └── reranker.py         # 결과 재정렬
-│
-├── domain/                 # Domain: 순수 로직 + Repository ABC
-│   ├── entities/           # Domain Entity (NEW)
+├── domain/                 # Domain: 순수 로직 + Repository Interface
+│   ├── entities/           # Domain Entity
 │   │   └── intent.py       # Intent Enum
-│   ├── repositories/       # Repository Interface
+│   ├── repositories/       # Repository Interface (DB만)
 │   │   ├── i_user_repository.py
 │   │   ├── i_link_repository.py
-│   │   ├── i_chunk_repository.py
-│   │   ├── i_telegram_repository.py
-│   │   ├── i_notion_repository.py
-│   │   ├── i_scraper_repository.py
-│   │   └── i_openai_repository.py
+│   │   └── i_chunk_repository.py
 │   ├── drift.py            # Interest Drift (Phase 3)
 │   └── scoring.py          # Reactivation Score (Phase 3)
 │
-├── infrastructure/         # Infrastructure: 구현체 + Adapter
+├── infrastructure/         # Infrastructure: 모든 구현체
 │   ├── repository/         # DB Repository 구현
 │   │   ├── user_repository.py
 │   │   ├── link_repository.py
 │   │   └── chunk_repository.py
-│   ├── adapters/           # Port Adapter 구현 (NEW)
+│   ├── adapters/           # Application Port 구현
 │   │   ├── openai_intent_classifier.py
 │   │   └── knowledge_agent_adapter.py
-│   ├── llm/
+│   ├── rag/                # 검색 전략 (RAG도 Infrastructure)
+│   │   ├── retriever.py        # Hybrid Retrieval
+│   │   └── reranker.py         # 결과 재정렬
+│   ├── llm/                # LLM 구현
 │   │   ├── openai_client.py
-│   │   ├── openai_llm_gateway.py
-│   │   └── router_llm.py
-│   ├── external/
+│   │   └── openai_llm_gateway.py
+│   ├── external/           # 외부 API 포트 구현
 │   │   ├── telegram_client.py
 │   │   ├── notion_client.py
 │   │   └── scraper_client.py
@@ -262,42 +289,58 @@ Parent-Child split for RAG quality. Defined in `app/models/`.
 
 ### 링크 저장 (SaveLinkUseCase)
 ```
-Router (/webhook) → TelegramWebhookHandler (웹훅 수신 + callback)
-                 → MessageRouterService (메시지 라우팅)
-                   ├─ IntentClassifierPort (Port): Intent 분류
-                   │  └─ OpenAIIntentClassifier (Adapter): GPT-4o-mini Structured Output
-                   └─ SaveLinkUseCase.execute()
-                      ├─ Scraper: 콘텐츠 추출
-                      ├─ OpenAI: 분석 (제목, 요약, 카테고리, 키워드)
-                      ├─ Utils: split_chunks (임베딩용 청크 분할)
-                      ├─ Repository: DB 저장
-                      ├─ DB.commit()
-                      ├─ Notion: 동기화
-                      └─ Telegram: 알림
+Router (/webhook)
+  ↓
+TelegramWebhookHandler (프로토콜: 웹훅 수신 + callback)
+  ↓
+MessageRouterService (정책: 메시지 라우팅)
+  ├─ IntentClassifierPort (Port)
+  │  └─ OpenAIIntentClassifier (Adapter): Structured Output
+  └─ SaveLinkUseCase (Use Case: 링크 저장 파이프라인)
+     ├─ ScraperPort (Port)
+     │  └─ ScraperRepository (Adapter): Jina Reader
+     ├─ OpenAILLMPort (Port)
+     │  └─ OpenAIRepository (Adapter): GPT-4o 분석
+     ├─ Repository (Domain): DB 저장
+     ├─ NotionPort (Port)
+     │  └─ NotionRepository (Adapter): Notion 동기화
+     └─ TelegramPort (Port)
+        └─ TelegramRepository (Adapter): 알림 전송
 ```
 
 ### RAG 검색 (SearchUseCase)
 ```
-Router (/webhook) → TelegramWebhookHandler (웹훅 수신)
-                 → MessageRouterService (메시지 라우팅)
-                   ├─ IntentClassifierPort (Port): Intent 분류
-                   └─ SearchUseCase.execute()
-                      ├─ OpenAI: 쿼리 임베딩
-                      ├─ RAG/Retriever: Hybrid Retrieval (벡터 + 키워드)
-                      ├─ RAG/Reranker: 결과 재정렬
-                      └─ Telegram: 결과 전송
+Router (/webhook)
+  ↓
+TelegramWebhookHandler
+  ↓
+MessageRouterService
+  ├─ IntentClassifierPort → OpenAIIntentClassifier
+  └─ SearchUseCase (RAG 파이프라인)
+     ├─ OpenAILLMPort → OpenAIRepository (임베딩)
+     ├─ HybridRetriever (Infrastructure): 벡터+키워드 검색
+     ├─ SimpleReranker (Infrastructure): 결과 재정렬
+     └─ TelegramPort → TelegramRepository (결과 전송)
 ```
 
-### Agent (/ask 명령어, Phase 2)
+### AI Agent (/ask 명령어)
 ```
-Router (/webhook) → TelegramWebhookHandler (웹훅 수신)
-                 → MessageRouterService (메시지 라우팅)
-                   ├─ IntentClassifierPort (Port): Intent 분류
-                   └─ AgentPort (Port): Agent 실행
-                      └─ KnowledgeAgentAdapter (Adapter)
-                         ├─ KnowledgeAgent (OpenAI Function Calling)
-                         ├─ Tools:
-                         │  ├─ search_knowledge_base → SearchUseCase
-                         │  └─ get_unread_links → LinkRepository
-                         └─ Telegram (알림 자동)
+Router (/webhook)
+  ↓
+TelegramWebhookHandler
+  ↓
+MessageRouterService
+  ├─ IntentClassifierPort → OpenAIIntentClassifier
+  └─ AgentPort (Port)
+     └─ KnowledgeAgentAdapter (Adapter)
+        ↓
+        KnowledgeAgent (Application Service)
+        ├─ LLMGatewayPort (Port)
+        │  └─ OpenAILLMGateway (Adapter): Function Calling
+        ├─ Tools:
+        │  ├─ search_knowledge_base → SearchUseCase
+        │  │  ├─ HybridRetriever (Infrastructure/RAG)
+        │  │  └─ SimpleReranker (Infrastructure/RAG)
+        │  └─ get_unread_links → LinkRepository (Domain)
+        └─ TelegramPort → TelegramRepository (자동 알림)
 ```
