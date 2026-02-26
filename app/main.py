@@ -7,13 +7,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 from app.api.v1.endpoints import auth, search, webhook
-from app.infrastructure.external.telegram_client import TelegramRepository
+from app.api.dependencies.auth_di import get_telegram_client
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    telegram_repo = TelegramRepository()
+    telegram_repo = get_telegram_client()
     success = await telegram_repo.register_commands()
     if success:
         logger.info("✅ Telegram bot commands registered successfully")
