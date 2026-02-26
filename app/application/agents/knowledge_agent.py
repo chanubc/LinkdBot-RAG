@@ -2,6 +2,7 @@ import json
 import logging
 
 from app.domain.repositories.i_link_repository import ILinkRepository
+from app.application.models.llm import LLMMessage, LLMTool
 from app.application.ports.telegram_port import TelegramPort
 from app.application.ports.llm_gateway_port import LLMGatewayPort
 from app.infrastructure.rag.reranker import SimpleReranker
@@ -10,40 +11,34 @@ from app.infrastructure.rag.retriever import HybridRetriever
 logger = logging.getLogger(__name__)
 
 _TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "search_knowledge_base",
-            "description": "사용자가 저장한 링크와 메모에서 관련 내용을 검색합니다.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "검색할 질문 또는 키워드",
-                    }
-                },
-                "required": ["query"],
+    LLMTool(
+        name="search_knowledge_base",
+        description="사용자가 저장한 링크와 메모에서 관련 내용을 검색합니다.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "검색할 질문 또는 키워드",
+                }
             },
+            "required": ["query"],
         },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_unread_links",
-            "description": "사용자가 아직 읽지 않은 저장된 링크 목록을 가져옵니다.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "limit": {
-                        "type": "integer",
-                        "description": "가져올 링크 수 (기본값: 5)",
-                    }
-                },
-                "required": [],
+    ),
+    LLMTool(
+        name="get_unread_links",
+        description="사용자가 아직 읽지 않은 저장된 링크 목록을 가져옵니다.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "가져올 링크 수 (기본값: 5)",
+                }
             },
+            "required": [],
         },
-    },
+    ),
 ]
 
 
@@ -65,56 +60,60 @@ class KnowledgeAgent:
         self._llm = llm
 
     async def handle(self, telegram_id: int, query: str) -> None:
-        """Function Calling 루프: intent → tool → synthesis → send."""
+        """Function Calling loop: intent → tool → synthesis → send."""
         try:
-            messages: list[dict] = [
-                {
-                    "role": "system",
-                    "content": (
+            messages: list[LLMMessage] = [
+                LLMMessage(
+                    role="system",
+                    content=(
                         "당신은 사용자의 개인 지식 베이스 도우미입니다. "
                         "사용자가 저장한 링크와 메모를 기반으로 질문에 답하세요. "
                         "도구를 활용하여 관련 정보를 검색하고 정확하고 유용한 답변을 제공하세요."
                     ),
-                },
-                {"role": "user", "content": query},
+                ),
+                LLMMessage(role="user", content=query),
             ]
 
-            msg = await self._llm.chat_completions(
+            response = await self._llm.chat_completions(
                 messages=messages,
                 model="gpt-4o",
                 tools=_TOOLS,
                 tool_choice="auto",
             )
 
-            tool_calls = msg.get("tool_calls")
-            if not tool_calls:
+            if not response.tool_calls:
                 await self._telegram.send_message(
-                    telegram_id, msg.get("content") or "답변을 생성할 수 없습니다."
+                    telegram_id, response.message.content or "답변을 생성할 수 없습니다."
                 )
                 return
 
-            messages.append(msg)
-            for tool_call in tool_calls:
+            # Add assistant response to messages
+            messages.append(response.message)
+
+            # Execute tool calls
+            for tool_call in response.tool_calls:
                 tool_result = await self._execute_tool(
                     telegram_id,
                     tool_call["function"]["name"],
                     json.loads(tool_call["function"]["arguments"]),
                 )
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call["id"],
-                    "content": json.dumps(tool_result, ensure_ascii=False),
-                })
+                messages.append(
+                    LLMMessage(
+                        role="tool",
+                        content=json.dumps(tool_result, ensure_ascii=False),
+                        tool_call_id=tool_call["id"],
+                    )
+                )
 
             final_response = await self._llm.chat_completions(
                 messages=messages,
                 model="gpt-4o",
             )
-            answer = final_response.get("content") or "답변을 생성할 수 없습니다."
+            answer = final_response.message.content or "답변을 생성할 수 없습니다."
             await self._telegram.send_message(telegram_id, answer)
 
         except Exception as exc:
-            logger.exception("AgentService.handle 오류 (telegram_id=%s)", telegram_id)
+            logger.exception("KnowledgeAgent.handle error (telegram_id=%s)", telegram_id)
             await self._telegram.send_message(
                 telegram_id, f"❌ 처리 실패: {str(exc)[:200]}"
             )
