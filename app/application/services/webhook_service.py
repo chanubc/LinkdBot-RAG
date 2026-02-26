@@ -2,13 +2,14 @@ import logging
 
 from fastapi import BackgroundTasks
 
-from app.domain.text import extract_urls
+from app.application.services.agent_service import AgentService
+from app.application.services.auth_service import AuthService
+from app.application.usecases.save_link_usecase import SaveLinkUseCase
+from app.application.usecases.save_memo_usecase import SaveMemoUseCase
+from app.application.usecases.search_usecase import SearchUseCase
 from app.domain.repositories.i_telegram_repository import ITelegramRepository
 from app.domain.repositories.i_user_repository import IUserRepository
-from app.services.auth_service import AuthService
-from app.services.link_service import LinkService
-from app.services.memo_service import MemoService
-from app.services.search_service import SearchService
+from app.utils.text import extract_urls
 
 logger = logging.getLogger(__name__)
 
@@ -16,16 +17,18 @@ logger = logging.getLogger(__name__)
 class WebhookService:
     def __init__(
         self,
-        link_service: LinkService,
-        memo_service: MemoService,
-        search_service: SearchService,
+        save_link_uc: SaveLinkUseCase,
+        save_memo_uc: SaveMemoUseCase,
+        search_uc: SearchUseCase,
+        agent_svc: AgentService,
         telegram: ITelegramRepository,
         user_repo: IUserRepository,
         auth_service: AuthService,
     ) -> None:
-        self._link_service = link_service
-        self._memo_service = memo_service
-        self._search_service = search_service
+        self._save_link_uc = save_link_uc
+        self._save_memo_uc = save_memo_uc
+        self._search_uc = search_uc
+        self._agent_svc = agent_svc
         self._telegram = telegram
         self._user_repo = user_repo
         self._auth_service = auth_service
@@ -48,6 +51,8 @@ class WebhookService:
             await self._handle_start(telegram_id, message)
         elif text.startswith("/memo"):
             await self._handle_memo(telegram_id, text, background_tasks)
+        elif text.startswith("/ask"):
+            await self._handle_ask(telegram_id, text, background_tasks)
         elif text.startswith("/search"):
             await self._handle_search(telegram_id, text)
         else:
@@ -82,14 +87,26 @@ class WebhookService:
         if memo_text:
             logger.info("Processing memo from %s", telegram_id)
             await self._telegram.send_message(telegram_id, "📝 메모를 저장하는 중입니다...")
-            background_tasks.add_task(
-                self._memo_service.process_memo, telegram_id, memo_text
-            )
+            background_tasks.add_task(self._save_memo_uc.execute, telegram_id, memo_text)
         else:
             await self._telegram.send_message(
                 telegram_id,
                 "메모 내용을 입력해주세요.\n예시: <code>/memo 오늘 배운 내용</code>",
             )
+
+    async def _handle_ask(
+        self, telegram_id: int, text: str, background_tasks: BackgroundTasks
+    ) -> None:
+        query = text[4:].strip()
+        if not query:
+            await self._telegram.send_message(
+                telegram_id,
+                "질문을 입력해주세요.\n예시: <code>/ask 머신러닝이란?</code>",
+            )
+            return
+        logger.info("Agent query from %s: %s", telegram_id, query)
+        await self._telegram.send_message(telegram_id, "🤖 답변을 생성하는 중입니다...")
+        background_tasks.add_task(self._agent_svc.handle, telegram_id, query)
 
     async def _handle_search(self, telegram_id: int, text: str) -> None:
         query = text[7:].strip()
@@ -100,7 +117,7 @@ class WebhookService:
             )
             return
         logger.info("Searching for %s from %s", query, telegram_id)
-        results = await self._search_service.search(telegram_id, query)
+        results = await self._search_uc.execute(telegram_id, query)
         await self._telegram.send_search_results(telegram_id, query, results)
 
     async def _handle_url(
@@ -113,14 +130,12 @@ class WebhookService:
         for url in urls:
             logger.info("Processing URL from %s: %s", telegram_id, url)
             await self._telegram.send_message(telegram_id, "🔍 링크를 저장하는 중입니다...")
-            background_tasks.add_task(
-                self._link_service.process_link, telegram_id, url, memo
-            )
+            background_tasks.add_task(self._save_link_uc.execute, telegram_id, url, memo)
 
     async def _handle_text(self, telegram_id: int, text: str) -> None:
         query = text.strip()
         if not query:
             return
         logger.info("Searching for %s from %s", query, telegram_id)
-        results = await self._search_service.search(telegram_id, query)
+        results = await self._search_uc.execute(telegram_id, query)
         await self._telegram.send_search_results(telegram_id, query, results)

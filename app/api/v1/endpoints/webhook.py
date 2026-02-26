@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
 
 from app.api.dependencies import get_webhook_service
-from app.services.webhook_service import WebhookService
+from app.application.services.webhook_service import WebhookService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

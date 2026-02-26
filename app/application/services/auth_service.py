@@ -2,7 +2,7 @@ import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
+from app.core.config import settings
 from app.domain.repositories.i_notion_repository import INotionRepository
 from app.domain.repositories.i_state_store import IStateStore
 from app.domain.repositories.i_telegram_repository import ITelegramRepository

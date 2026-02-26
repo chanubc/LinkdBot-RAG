@@ -3,6 +3,7 @@ from functools import lru_cache
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application.services.auth_service import AuthService
 from app.domain.repositories.i_notion_repository import INotionRepository
 from app.domain.repositories.i_telegram_repository import ITelegramRepository
 from app.infrastructure.database import get_db
@@ -10,7 +11,6 @@ from app.infrastructure.external.notion_client import NotionRepository
 from app.infrastructure.external.telegram_client import TelegramRepository
 from app.infrastructure.repository.user_repository import UserRepository
 from app.infrastructure.state_store import InMemoryStateStore
-from app.services.auth_service import AuthService
 
 
 def get_notion_client() -> INotionRepository:

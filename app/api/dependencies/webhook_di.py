@@ -1,30 +1,32 @@
 from fastapi import Depends
 
+from app.api.dependencies.agent_di import get_agent_service
 from app.api.dependencies.auth_di import (
     get_auth_service,
     get_telegram_client,
     get_user_repository,
 )
-from app.api.dependencies.link_di import (
-    get_link_service,
-    get_memo_service,
-    get_search_service,
-)
+from app.api.dependencies.link_di import get_save_link_usecase, get_save_memo_usecase
+from app.api.dependencies.rag_di import get_search_usecase
+from app.application.services.agent_service import AgentService
+from app.application.services.auth_service import AuthService
+from app.application.services.webhook_service import WebhookService
+from app.application.usecases.save_link_usecase import SaveLinkUseCase
+from app.application.usecases.save_memo_usecase import SaveMemoUseCase
+from app.application.usecases.search_usecase import SearchUseCase
 from app.domain.repositories.i_telegram_repository import ITelegramRepository
 from app.infrastructure.repository.user_repository import UserRepository
-from app.services.auth_service import AuthService
-from app.services.link_service import LinkService
-from app.services.memo_service import MemoService
-from app.services.search_service import SearchService
-from app.services.webhook_service import WebhookService
 
 
 def get_webhook_service(
-    link_service: LinkService = Depends(get_link_service),
-    memo_service: MemoService = Depends(get_memo_service),
-    search_service: SearchService = Depends(get_search_service),
+    save_link_uc: SaveLinkUseCase = Depends(get_save_link_usecase),
+    save_memo_uc: SaveMemoUseCase = Depends(get_save_memo_usecase),
+    search_uc: SearchUseCase = Depends(get_search_usecase),
+    agent_svc: AgentService = Depends(get_agent_service),
     telegram: ITelegramRepository = Depends(get_telegram_client),
     user_repo: UserRepository = Depends(get_user_repository),
     auth_service: AuthService = Depends(get_auth_service),
 ) -> WebhookService:
-    return WebhookService(link_service, memo_service, search_service, telegram, user_repo, auth_service)
+    return WebhookService(
+        save_link_uc, save_memo_uc, search_uc, agent_svc, telegram, user_repo, auth_service
+    )

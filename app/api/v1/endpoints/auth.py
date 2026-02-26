@@ -6,8 +6,8 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 logger = logging.getLogger(__name__)
 
 from app.api.dependencies import get_auth_service
-from app.config import settings
-from app.services.auth_service import AuthService
+from app.application.services.auth_service import AuthService
+from app.core.config import settings
 
 router = APIRouter()
 
