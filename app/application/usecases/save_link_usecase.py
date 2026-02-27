@@ -10,7 +10,7 @@ from app.application.ports.openai_llm_port import OpenAILLMPort
 from app.application.ports.scraper_port import ScraperPort
 from app.application.ports.telegram_port import TelegramPort
 from app.domain.repositories.i_user_repository import IUserRepository
-from app.utils.text import split_chunks
+from app.utils.text import split_chunks, split_markdown
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ class SaveLinkUseCase:
             await self._telegram.send_message(telegram_id, "🔍 링크를 저장하는 중입니다...")
 
             # 1. Scrape
-            content = await self._scraper.scrape(url)
+            content, content_source = await self._scraper.scrape(url)
             if memo:
                 content = f"{content}\n\n{memo}"
 
@@ -58,6 +58,12 @@ class SaveLinkUseCase:
             keywords: list[str] = analysis.get("keywords", [])
             keywords_json = json.dumps(keywords, ensure_ascii=False)
 
+            # 2-1. Summary 임베딩 생성 (Drift/Reactivation 계산용)
+            if summary:
+                [summary_embedding] = await self._openai.embed([summary])
+            else:
+                summary_embedding = None
+
             # 3. DB 저장
             await self._user_repo.ensure_exists(telegram_id)
             link = await self._link_repo.save_link(
@@ -68,13 +74,18 @@ class SaveLinkUseCase:
                 category=category,
                 keywords=keywords_json,
                 memo=memo,
+                content_source=content_source,
+                summary_embedding=summary_embedding,
             )
             if link is None:
                 await self._telegram.send_message(telegram_id, "⚠️ 이미 저장된 링크입니다.")
                 return
 
-            # 4. Embed & chunk 저장
-            raw_chunks = split_chunks(content)
+            # 4. Embed & chunk 저장 (Jina 콘텐츠면 Markdown 분할, 아니면 단어 분할)
+            if content_source == "jina":
+                raw_chunks = split_markdown(content)
+            else:
+                raw_chunks = split_chunks(content)
             if raw_chunks:
                 embeddings = await self._openai.embed(raw_chunks)
                 await self._chunk_repo.save_chunks(link.id, list(zip(raw_chunks, embeddings)))
