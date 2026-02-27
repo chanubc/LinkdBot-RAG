@@ -1,12 +1,12 @@
 from openai import AsyncOpenAI
 
 from app.core.config import settings
-from app.application.ports.ai_task_port import AITaskPort
+from app.application.ports.ai_analysis_port import AIAnalysisPort
 from app.domain.entities.content_analysis import ContentAnalysis
 from app.prompts.analyze_content import ANALYZE_CONTENT_PROMPT
 
 
-class OpenAIRepository(AITaskPort):
+class OpenAIRepository(AIAnalysisPort):
     def __init__(self) -> None:
         self._client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 

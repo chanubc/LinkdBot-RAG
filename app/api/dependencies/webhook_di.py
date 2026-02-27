@@ -8,8 +8,8 @@ from app.api.dependencies.auth_di import (
 )
 from app.api.dependencies.link_di import get_link_repository, get_save_link_usecase, get_save_memo_usecase
 from app.api.dependencies.rag_di import get_search_usecase
-from app.application.ports.agent_port import AgentPort
-from app.application.ports.intent_classifier_port import IntentClassifierPort
+from app.application.ports.knowledge_agent_port import KnowledgeAgentPort
+from app.application.ports.intent_router_port import IntentRouterPort
 from app.application.services.auth_service import AuthService
 from app.application.services.telegram_webhook_handler import TelegramWebhookHandler
 from app.application.services.message_router_service import MessageRouterService
@@ -24,8 +24,8 @@ from app.infrastructure.repository.user_repository import UserRepository
 
 
 def get_message_router(
-    intent_classifier: IntentClassifierPort = Depends(get_intent_classifier),
-    agent: AgentPort = Depends(get_agent),
+    intent_classifier: IntentRouterPort = Depends(get_intent_classifier),
+    agent: KnowledgeAgentPort = Depends(get_agent),
     search_uc: SearchUseCase = Depends(get_search_usecase),
     save_memo_uc: SaveMemoUseCase = Depends(get_save_memo_usecase),
     telegram: TelegramPort = Depends(get_telegram_client),

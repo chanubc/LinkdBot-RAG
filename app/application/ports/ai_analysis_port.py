@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from app.domain.entities.content_analysis import ContentAnalysis
 
 
-class AITaskPort(ABC):
+class AIAnalysisPort(ABC):
     """AI task execution Port (content analysis, embedding, text generation)."""
 
     @abstractmethod

@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.repositories.i_chunk_repository import IChunkRepository
 from app.domain.repositories.i_link_repository import ILinkRepository
-from app.application.ports.ai_task_port import AITaskPort
+from app.application.ports.ai_analysis_port import AIAnalysisPort
 from app.application.ports.notion_port import NotionPort
 from app.application.ports.scraper_port import ScraperPort
 from app.application.ports.telegram_port import TelegramPort
@@ -22,7 +22,7 @@ class SaveLinkUseCase:
         user_repo: IUserRepository,
         link_repo: ILinkRepository,
         chunk_repo: IChunkRepository,
-        openai: AITaskPort,
+        openai: AIAnalysisPort,
         scraper: ScraperPort,
         telegram: TelegramPort,
         notion: NotionPort,

@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth_di import get_telegram_client, get_user_repository
 from app.api.dependencies.link_di import get_openai_client
-from app.application.ports.ai_task_port import AITaskPort
+from app.application.ports.ai_analysis_port import AIAnalysisPort
 from app.application.ports.telegram_port import TelegramPort
 from app.application.usecases.generate_weekly_report_usecase import GenerateWeeklyReportUseCase
 from app.domain.repositories.i_link_repository import ILinkRepository
@@ -29,7 +29,7 @@ def get_weekly_report_usecase(
         lambda db=Depends(get_db): LinkRepository(db)
     ),
     rec_repo: IRecommendationRepository = Depends(get_recommendation_repository),
-    openai: AITaskPort = Depends(get_openai_client),
+    openai: AIAnalysisPort = Depends(get_openai_client),
     telegram: TelegramPort = Depends(get_telegram_client),
 ) -> GenerateWeeklyReportUseCase:
     return GenerateWeeklyReportUseCase(db, user_repo, link_repo, rec_repo, openai, telegram)

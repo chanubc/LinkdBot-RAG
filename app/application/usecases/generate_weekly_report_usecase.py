@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application.ports.ai_task_port import AITaskPort
+from app.application.ports.ai_analysis_port import AIAnalysisPort
 from app.application.ports.telegram_port import TelegramPort
 from app.domain.drift import calculate_drift
 from app.domain.repositories.i_link_repository import ILinkRepository
@@ -33,7 +33,7 @@ class GenerateWeeklyReportUseCase:
         user_repo: IUserRepository,
         link_repo: ILinkRepository,
         rec_repo: IRecommendationRepository,
-        openai: AITaskPort,
+        openai: AIAnalysisPort,
         telegram: TelegramPort,
     ) -> None:
         self._db = db
