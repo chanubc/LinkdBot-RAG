@@ -108,7 +108,7 @@ class SaveLinkUseCase:
 
         except Exception as exc:
             await self._telegram.send_message(
-                telegram_id, f"❌ 처리 실패: {str(exc)[:200]}"
+                telegram_id, f"❌ 처리 실패: {html.escape(str(exc)[:200])}"
             )
 
     async def _save_to_notion(

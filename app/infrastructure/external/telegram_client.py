@@ -16,10 +16,17 @@ class TelegramRepository(TelegramPort):
 
     async def send_message(self, chat_id: int, text: str) -> None:
         async with httpx.AsyncClient() as client:
-            await client.post(
+            resp = await client.post(
                 f"{self._base}/sendMessage",
                 json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"},
             )
+            if not resp.is_success:
+                logger.error(
+                    "send_message failed %s: %s | text=%r",
+                    resp.status_code,
+                    resp.text,
+                    text[:200],
+                )
 
     async def send_notion_connect_button(self, chat_id: int, login_url: str) -> None:
         """Notion 연동 인라인 버튼 전송 (도움말 버튼 포함)."""
