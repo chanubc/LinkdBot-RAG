@@ -16,14 +16,18 @@ class UserRepository(IUserRepository):
         )
         return result.scalar_one_or_none()
 
-    async def ensure_exists(self, telegram_id: int) -> User:
-        """유저가 없으면 생성."""
+    async def ensure_exists(self, telegram_id: int, first_name: str | None = None) -> User:
+        """유저가 없으면 생성, 기존 유저면 first_name 업데이트."""
         user = await self.get_by_telegram_id(telegram_id)
         if not user:
-            user = User(telegram_id=telegram_id)
+            user = User(telegram_id=telegram_id, first_name=first_name)
             self._db.add(user)
             await self._db.flush()
             await self._db.refresh(user)
+        elif first_name and user.first_name != first_name:
+            # 기존 유저도 first_name 업데이트 (profile 변경 대비)
+            user.first_name = first_name
+            await self._db.flush()
         return user
 
     async def upsert_notion_credentials(
