@@ -22,7 +22,7 @@ pytest
 ```
 
 > **필수 테스트:**
-- [ ] 웹훅 엔드포인트: `POST /api/v1/webhook/telegram` (test/test_webhook.http 참고)
+- [ ] 웹훅 엔드포인트: `POST /api/v1/webhook/telegram` (tests/test_webhook.http 참고)
 - [ ] `/start`, `/memo`, `/search`, `/ask` 명령어 정상 작동
 - [ ] URL 저장 정상 작동
 
