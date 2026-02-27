@@ -8,12 +8,23 @@ closed #이슈번호
 
 -
 
-## ✅ 𝗖𝗵𝗲𝗰𝗸𝗹𝗶𝘀𝘁
-- [ ] 레이어 간 의존성 방향 준수 (Presentation → Application → Domain ← Infrastructure)
-- [ ] 모든 함수/메서드에 Type Hint 작성
-- [ ] 외부 I/O는 Interface(ABC) 타입으로 의존
-- [ ] DI는 FastAPI Depends만 사용, 내부 직접 인스턴스화 금지
-- [ ] 모든 I/O는 async/await 사용
+## 🧪 𝗧𝗲𝘀𝘁
+> 이 PR을 로컬에서 테스트하려면 다음을 실행하세요:
+```bash
+# 마이그레이션 적용 (변경 사항이 있을 경우)
+alembic upgrade head
+
+# 개발 서버 실행
+uvicorn app.main:app --reload --port 8000
+
+# 테스트 실행
+pytest
+```
+
+> **필수 테스트:**
+- [ ] 웹훅 엔드포인트: `POST /api/v1/webhook/telegram` (tests/test_webhook.http 참고)
+- [ ] `/start`, `/memo`, `/search`, `/ask` 명령어 정상 작동
+- [ ] URL 저장 정상 작동
 
 ## 📸 𝗦𝗰𝗿𝗲𝗲𝗻𝘀𝗵𝗼𝘁
 

@@ -1,14 +1,40 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code when working with LinkdBot-RAG.
 
-## Project Overview
+## 🎯 Project Identity
 
-LinkdBot-RAG — 사용자가 텔레그램으로 URL을 전송하면 자동으로 스크래핑, AI 분석, 벡터 임베딩 후 Notion에 저장하고 RAG 검색을 제공하는 백엔드 에이전트.
+**LinkdBot-RAG** — Proactive AI Knowledge Copilot
 
-**Tech Stack:** Python 3.11+, FastAPI (Async), PostgreSQL (pgvector), SQLAlchemy, OpenAI API, Telegram Bot, Notion API
+- Store user-shared links (Telegram)
+- Convert content into structured knowledge
+- Detect interest drift & reactivate knowledge
+- Send proactive weekly insights
 
-## Commands
+**Tech Stack:** Python 3.11+, FastAPI (Async), PostgreSQL + pgvector, SQLAlchemy, OpenAI API, Telegram Bot, Notion API (see [`.claude/stack.md`](./.claude/stack.md) for details)
+
+**Current Phase:** Phase 2 (Complete) → Phase 3 (Proactive Agent, In Progress)
+
+**Architecture Pattern:** Pragmatic Clean Architecture + **Port/Adapter (Hexagonal)** for external systems
+
+---
+
+## 🏗️ Architecture (Pragmatic Clean Architecture)
+
+**Layers:** Presentation → Application → Domain/RAG ← Infrastructure
+
+**Key Principles:**
+- Keep domain logic pure
+- Use FastAPI Depends for DI only
+- Strict SRP: Prevent 'God Objects'
+- Decouple External I/O: Depend on interfaces (ABC), not concrete classes
+- No circular imports
+
+**For detailed architecture, see [`.claude/architecture.md`](./.claude/architecture.md)**
+
+---
+
+## 📋 Quick Commands
 
 ```bash
 # 개발 서버 실행
@@ -16,8 +42,6 @@ uvicorn app.main:app --reload
 
 # 테스트 실행
 pytest
-
-# 단일 테스트 실행
 pytest tests/path/to/test.py::test_function_name -v
 
 # DB 마이그레이션
@@ -28,108 +52,65 @@ alembic revision --autogenerate -m "description"
 pip install -r requirements.txt
 ```
 
-## Architecture (Light Clean Architecture)
+---
 
-의존성 방향: **Presentation → Services → domain/repositories(Interface) ← infrastructure/repository(Impl)**
+## 🎮 Coding Conventions
 
-- **Presentation (`app/api/`):** FastAPI 라우터. 비즈니스 로직 작성 금지.
-- **Application (`app/services/`):** Agent의 두뇌 역할 및 흐름 제어 (오케스트레이션). Interface 타입으로 의존성 선언.
-- **Domain (`app/domain/`):** DB/API 의존성이 없는 순수 비즈니스 로직 (Scoring, Drift 계산) + **Repository ABC 인터페이스**.
-- **Infrastructure (`app/infrastructure/`):** Repository 구현체, 외부 API Client (Notion, Telegram, OpenAI).
-- **DI (Dependency Injection):** FastAPI `Depends`만 사용 (`app/api/dependencies/`).
+See [`.claude/coding_rules.md`](./.claude/coding_rules.md) for detailed conventions including:
+- Type Hints & Async requirements
+- DI strategy (Interface types, DI factories)
+- Domain, Repository, Service rules
+- Commit & PR conventions
 
-```
-app/
-├── api/            # Presentation: FastAPI 라우터만. 비즈니스 로직 금지.
-│   ├── v1/endpoints/
-│   │   ├── auth.py         # Notion OAuth 흐름
-│   │   └── webhook.py      # Telegram 웹훅 수신
-│   └── dependencies/       # FastAPI Depends로 DI 주입
-│       ├── auth_di.py
-│       ├── link_di.py      # get_chunk_repository 포함
-│       └── webhook_di.py
-├── services/       # Application: 오케스트레이션 (흐름 제어)
-│   ├── link_service.py     # 링크 처리 파이프라인 (Phase 1)
-│   ├── agent_service.py    # RAG 에이전트 두뇌 (Phase 2)
-│   └── report_service.py   # 주간 리포트 스케줄러 (Phase 3)
-├── domain/         # Domain: 순수 로직 + Repository 인터페이스
-│   ├── repositories/       # ABC 인터페이스 (DB 의존 없음)
-│   │   ├── i_user_repository.py
-│   │   ├── i_link_repository.py
-│   │   └── i_chunk_repository.py
-│   ├── text.py             # 순수 텍스트 처리 함수 (split_chunks, extract_urls)
-│   ├── drift.py            # Interest Drift 계산 (Phase 3)
-│   └── scoring.py          # Reactivation Score 계산 (Phase 3)
-├── infrastructure/ # Infrastructure: 외부 시스템 연동
-│   ├── llm/openai_client.py
-│   ├── external/notion_client.py
-│   └── repository/         # Repository 구현체 (엔티티별 분리)
-│       ├── user_repository.py
-│       ├── link_repository.py
-│       └── chunk_repository.py
-└── models/         # SQLAlchemy ORM 모델
-```
+---
 
-## Key Flows
+## 📚 Reference Documents
 
-**링크 처리 파이프라인** (`app/services/link_service.py`, `BackgroundTasks`로 비동기 실행):
-1. Scrape: Jina Reader API (`https://r.jina.ai/{url}`) → 마크다운 추출
-2. AI Analysis: GPT-4o → 3줄 요약, 카테고리 분류, 키워드 추출
-3. Embed: `text-embedding-3-small` → 500~1000자 청크 단위 벡터화
-4. Save: DB (`Link`, `Chunk` 테이블) + Notion 페이지
-5. Notify: 텔레그램으로 완료 알림
+Essential reading before coding:
 
-**Notion OAuth** (`app/api/v1/endpoints/auth.py`):
-- `/auth/notion/login` → Notion 인증 페이지 리다이렉트 (state=telegram_id)
-- `/auth/notion/callback` → 토큰 발급 → DB Upsert
+- **Architecture & DB Schema:** [`.claude/architecture.md`](./.claude/architecture.md)
+- **Migration Plan:** [`.claude/migration_plan.md`](./.claude/migration_plan.md) (Phase 2 마이그레이션 히스토리)
+- **Phase Specs:**
+  - Phase 1 (수집 & 인프라): [`.claude/phases/phase1.md`](./.claude/phases/phase1.md)
+  - Phase 2 (RAG & Agent): [`.claude/phases/phase2.md`](./.claude/phases/phase2.md)
+  - Phase 3 (Proactive Agent): [`.claude/phases/phase3.md`](./.claude/phases/phase3.md)
+- **Context & Logic:**
+  - Drift Logic: [`.claude/context/drift.md`](./.claude/context/drift.md)
+  - Reactivation Logic: [`.claude/context/reactivation.md`](./.claude/context/reactivation.md)
+  - Vector Strategy: [`.claude/context/vector_strategy.md`](./.claude/context/vector_strategy.md)
+- **Coding Rules:** [`.claude/coding_rules.md`](./.claude/coding_rules.md)
+- **Tech Stack:** [`.claude/stack.md`](./.claude/stack.md)
 
-## DB Schema
+---
 
-- `User`: `telegram_id` (PK), `notion_access_token` (암호화), `notion_page_id`
-- `Link`: `id`, `user_id` (FK), `url`, `title`, `summary`, `category`, `keywords`, `is_read`, `created_at` — UNIQUE(user_id, url)
-- `Chunk`: `id`, `link_id` (FK), `content`, `embedding` (Vector 1536)
+## 🔄 Development Strategy
 
-> `notion_access_token`은 반드시 `cryptography` 라이브러리로 암호화하여 저장.
+**Phase-based development:** Never implement future phase logic unless explicitly instructed.
 
-## Coding Conventions
+**Before starting work:**
+1. Read relevant Phase spec (`.claude/phases/phase{N}.md`)
+2. Check architecture (`.claude/architecture.md`)
+3. Follow coding conventions (see [`.claude/coding_rules.md`](./.claude/coding_rules.md))
 
-- 모든 함수/메서드에 **Type Hint** 필수
-- DB/API 등 모든 I/O는 **async/await** 사용
-- DI는 외부 라이브러리 없이 FastAPI `Depends`만 사용 (`app/api/dependencies.py`)
-- 새 파일 생성 전 기존 디렉토리 구조 확인 후 적절한 위치에 배치
+---
 
-### DI 규칙 (안티패턴 금지)
+## 📌 Git Workflow
 
-- `dependencies/`에 팩토리가 등록된 클래스(`NotionClient`, `TelegramClient`, `UserRepository` 등)는 Service/Endpoint 내부에서 직접 인스턴스화 **금지**
-- 모든 의존성은 반드시 `__init__` 파라미터로 주입받을 것
-- **Service는 Interface 타입(`IUserRepository` 등)으로 선언하고, DI 팩토리에서만 concrete class를 생성한다**
+See [`.claude/commands/start-feature.md`](./.claude/commands/start-feature.md) for detailed workflow.
 
-```python
-# ❌ 금지
-async def some_method(self):
-    repo = UserRepository(self._db)  # 내부 직접 인스턴스화
+**Quick summary:**
+1. GitHub 이슈 생성
+2. main 최신화
+3. `feat/#이슈번호-설명` 브랜치 생성
+4. 작업 후 PR 생성
+5. "Create a merge commit" 선택 후 병합
 
-# ✅ 올바른 방식 — Service는 Interface에 의존
-class SomeService:
-    def __init__(self, user_repo: IUserRepository) -> None:
-        self._user_repo = user_repo  # __init__으로 주입
+---
 
-# ✅ DI 팩토리에서만 concrete class 인스턴스화
-def get_some_service(
-    user_repo: UserRepository = Depends(get_user_repository),
-) -> SomeService:
-    return SomeService(user_repo)
-```
+## 📦 DB Schema Summary
 
-## Phase Specs
+- `users`: `telegram_id` (PK), `notion_access_token` (encrypted), `notion_page_id`
+- `links`: `id`, `user_id` (FK), `url`, `title`, `summary`, `category`, `keywords`, `is_read`, `created_at` — UNIQUE(user_id, url)
+- `chunks`: `id`, `link_id` (FK), `content`, `embedding` (Vector 1536)
 
-코드 작성 전 해당 Phase 문서를 먼저 읽을 것:
-- Phase 1 (수집 & 인프라): `.claude/phases/phase1.md`
-- Phase 2 (RAG & Agent): `.claude/phases/phase2.md`
-- Phase 3 (Proactive Agent): `.claude/phases/phase3.md`
-
-상세 참고:
-- Architecture & DB Schema: `.claude/architecture.md`
-- Coding Rules: `.claude/coding_rules.md`
-- Tech Stack: `.claude/stack.md`
-- Drift / Reactivation / Vector: `.claude/context/`
+See [`.claude/architecture.md`](./.claude/architecture.md) for full schema details.

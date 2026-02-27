@@ -2,28 +2,55 @@
 
 ## DI Strategy
 
-Use FastAPI Depends.
+Use FastAPI Depends only.
 
-Service는 **Interface 타입**으로 파라미터를 선언하고, DI 팩토리에서 concrete class를 주입한다.
+**2가지 DI 패턴:**
+
+### 1️⃣ Repository Pattern (DB I/O)
+Service는 **Repository Interface 타입**으로 파라미터를 선언하고, DI 팩토리에서 concrete Repository를 주입한다.
 
 ```python
-# ✅ Service — 인터페이스에만 의존
-class LinkService:
+# ✅ UseCase — Repository Interface에만 의존
+class SaveLinkUseCase:
     def __init__(
         self,
-        link_repo: ILinkRepository,
+        link_repo: ILinkRepository,  # Interface 타입
         chunk_repo: IChunkRepository,
     ) -> None: ...
 
-# ✅ DI factory — concrete class 인스턴스화
-def get_chunk_repository(db: AsyncSession = Depends(get_db)) -> ChunkRepository:
-    return ChunkRepository(db)
+# ✅ DI factory — concrete Repository 인스턴스화
+def get_link_repository(db: AsyncSession = Depends(get_db)) -> LinkRepository:
+    return LinkRepository(db)
 
-def get_link_service(
+def get_save_link_usecase(
     link_repo: LinkRepository = Depends(get_link_repository),
     chunk_repo: ChunkRepository = Depends(get_chunk_repository),
-) -> LinkService:
-    return LinkService(link_repo, chunk_repo)
+) -> SaveLinkUseCase:
+    return SaveLinkUseCase(link_repo, chunk_repo)
+```
+
+### 2️⃣ Port/Adapter Pattern (External Systems)
+Service는 **Port Interface 타입**으로 파라미터를 선언하고, DI 팩토리에서 Adapter를 주입한다.
+Framework 전환 가능 (OpenAI ↔ Anthropic, KnowledgeAgent ↔ LangGraph).
+
+```python
+# ✅ Service — Port Interface에만 의존
+class MessageRouterService:
+    def __init__(
+        self,
+        intent_classifier: IntentClassifierPort,  # Port 타입
+        agent: AgentPort,
+    ) -> None: ...
+
+# ✅ DI factory — Port → Adapter 매핑
+def get_intent_classifier() -> IntentClassifierPort:
+    return OpenAIIntentClassifier()  # Adapter 반환
+
+def get_message_router(
+    intent_classifier: IntentClassifierPort = Depends(get_intent_classifier),
+    agent: AgentPort = Depends(get_agent),
+) -> MessageRouterService:
+    return MessageRouterService(intent_classifier, agent)
 ```
 
 ---
@@ -31,10 +58,13 @@ def get_link_service(
 ## Domain Rules
 
 - Pure functions only.
-- No FastAPI imports.
-- No SQLAlchemy imports.
-- No HTTP calls.
-- **Repository interfaces (ABC)는 domain 레이어에 위치** (`app/domain/repositories/`).
+- No FastAPI, SQLAlchemy, HTTP, or External System imports.
+- **Repository interfaces (ABC) only** (`app/domain/repositories/`)
+  - **오직 데이터 저장소만**: Entity 저장/조회 (User, Link, Chunk)
+  - ❌ 외부 API (Telegram, Notion, OpenAI)는 Application Ports로
+- **Entities** (`app/domain/entities/`)
+  - `Intent` Enum (SEARCH, MEMO, ASK, START, HELP, UNKNOWN)
+  - Domain 비즈니스 모델들
 
 ---
 
@@ -50,9 +80,13 @@ def get_link_service(
 
 ## Service Rules
 
-- Orchestration only.
+- Orchestration & Protocol handling only (비즈니스 흐름 조율, 프로토콜 처리).
 - No raw SQL.
 - Call domain for calculations.
+- **SRP 준수**: 1 파일 = 1 책임
+  - 예: WebhookService 분리
+    - `TelegramWebhookHandler`: 웹훅 프로토콜만
+    - `MessageRouterService`: 메시지 라우팅 & Intent 분류
 
 ---
 
@@ -86,8 +120,10 @@ def get_link_service(
 [chore] : update .gitignore for tmpclaude files
 ```
 
-이슈가 있을 경우 반드시 `#이슈번호`를 앞에 붙인다.
-이슈가 없을 경우 prefix만 사용한다.
+**규칙:**
+- 이슈가 있을 경우 반드시 `#이슈번호`를 앞에 붙인다.
+- 이슈가 없을 경우 prefix만 사용한다.
+- **❌ Co-Authored-By 라인 추가 금지** — 단독 커밋으로만 진행
 
 ---
 
@@ -109,6 +145,13 @@ def get_link_service(
    chore/#8-update-deps
    ```
 3. **커밋** — `#이슈번호 [prefix] : 메시지`
+   - **기능별로 커밋**: 한 번에 여러 파일을 수정해도, 논리적 기능 단위로 나눠서 커밋한다.
+   - 예시 (같은 이슈 #40에서):
+     ```
+     커밋 1: #40 [refactor] : Implement Port/Adapter pattern for LLM
+     커밋 2: #40 [refactor] : Complete Port/Adapter pattern with SRP-compliant webhook service split
+     ```
+   - 각 커밋은 **독립적으로 동작 가능**해야 함 (히스토리 추적 용이)
 4. **PR 생성** — `feat/#N-xxx` → `main`, 본문에 `Closes #이슈번호` 포함, URL 노출 금지
    - PR 제목 형식: `[PREFIX/#이슈번호] 작업 제목`
    - 예시: `[FEAT/#12] Notion OAuth 콜백 엔드포인트 추가`, `[FIX/#7] 중복 URL 처리 버그 수정`

@@ -5,10 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.repositories.i_chunk_repository import IChunkRepository
 from app.domain.repositories.i_link_repository import ILinkRepository
-from app.domain.repositories.i_notion_repository import INotionRepository
-from app.domain.repositories.i_openai_repository import IOpenAIRepository
-from app.domain.repositories.i_scraper_repository import IScraperRepository
-from app.domain.repositories.i_telegram_repository import ITelegramRepository
+from app.application.ports.notion_port import NotionPort
+from app.application.ports.openai_llm_port import OpenAILLMPort
+from app.application.ports.scraper_port import ScraperPort
+from app.application.ports.telegram_port import TelegramPort
 from app.domain.repositories.i_user_repository import IUserRepository
 from app.utils.text import split_chunks
 
@@ -22,10 +22,10 @@ class SaveLinkUseCase:
         user_repo: IUserRepository,
         link_repo: ILinkRepository,
         chunk_repo: IChunkRepository,
-        openai: IOpenAIRepository,
-        scraper: IScraperRepository,
-        telegram: ITelegramRepository,
-        notion: INotionRepository,
+        openai: OpenAILLMPort,
+        scraper: ScraperPort,
+        telegram: TelegramPort,
+        notion: NotionPort,
     ) -> None:
         self._db = db
         self._user_repo = user_repo
@@ -37,8 +37,14 @@ class SaveLinkUseCase:
         self._notion = notion
 
     async def execute(self, telegram_id: int, url: str, memo: str | None = None) -> None:
-        """링크 처리 파이프라인 (BackgroundTask로 비동기 실행)."""
+        """링크 처리 파이프라인 (BackgroundTask로 비동기 실행).
+
+        웹훅은 이 함수 호출 즉시 응답하므로, 모든 사용자 피드백은 이 함수 내에서 관리됨.
+        """
         try:
+            # 0. 즉시 피드백 (사용자에게 처리 시작 알림)
+            await self._telegram.send_message(telegram_id, "🔍 링크를 저장하는 중입니다...")
+
             # 1. Scrape
             content = await self._scraper.scrape(url)
             if memo:

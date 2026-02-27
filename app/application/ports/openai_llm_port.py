@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 
 
-class IOpenAIRepository(ABC):
-    """OpenAI API 통신 인터페이스."""
+class OpenAILLMPort(ABC):
+    """OpenAI API 통신 Port."""
 
     @abstractmethod
     async def analyze_content(self, content: str) -> dict:

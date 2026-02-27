@@ -7,5 +7,6 @@ class User(Base):
     __tablename__ = "users"
 
     telegram_id = Column(BigInteger, primary_key=True)
+    first_name = Column(String, nullable=True)
     notion_access_token = Column(String, nullable=True)  # Fernet 암호화
     notion_database_id = Column(String, nullable=True)

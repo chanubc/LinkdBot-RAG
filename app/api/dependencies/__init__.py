@@ -14,7 +14,7 @@ from app.api.dependencies.link_di import (
     get_scraper_client,
 )
 from app.api.dependencies.rag_di import get_search_usecase
-from app.api.dependencies.webhook_di import get_webhook_service
+from app.api.dependencies.webhook_di import get_webhook_handler
 
 __all__ = [
     "get_notion_client",
@@ -29,5 +29,5 @@ __all__ = [
     "get_save_memo_usecase",
     "get_search_usecase",
     "get_knowledge_agent",
-    "get_webhook_service",
+    "get_webhook_handler",
 ]

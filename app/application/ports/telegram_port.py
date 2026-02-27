@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 
 
-class ITelegramRepository(ABC):
-    """Telegram API 통신 인터페이스."""
+class TelegramPort(ABC):
+    """Telegram API 통신 Port."""
 
     @abstractmethod
     async def send_message(self, chat_id: int, text: str) -> None:

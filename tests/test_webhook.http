@@ -1,5 +1,5 @@
 @base_url = http://localhost:8000
-@telegram_id = YOUR_TELEGRAM_ID
+@telegram_id = {{$dotenv TELEGRAM_TEST_ID}}
 
 ### ──────────────────────────────────────────
 ### /start — Notion 미연동 유저

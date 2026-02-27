@@ -4,8 +4,8 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.services.auth_service import AuthService
-from app.domain.repositories.i_notion_repository import INotionRepository
-from app.domain.repositories.i_telegram_repository import ITelegramRepository
+from app.application.ports.notion_port import NotionPort
+from app.application.ports.telegram_port import TelegramPort
 from app.infrastructure.database import get_db
 from app.infrastructure.external.notion_client import NotionRepository
 from app.infrastructure.external.telegram_client import TelegramRepository
@@ -13,11 +13,11 @@ from app.infrastructure.repository.user_repository import UserRepository
 from app.infrastructure.state_store import InMemoryStateStore
 
 
-def get_notion_client() -> INotionRepository:
+def get_notion_client() -> NotionPort:
     return NotionRepository()
 
 
-def get_telegram_client() -> ITelegramRepository:
+def get_telegram_client() -> TelegramPort:
     return TelegramRepository()
 
 
@@ -33,8 +33,8 @@ def get_state_store() -> InMemoryStateStore:
 
 def get_auth_service(
     db: AsyncSession = Depends(get_db),
-    notion: INotionRepository = Depends(get_notion_client),
-    telegram: ITelegramRepository = Depends(get_telegram_client),
+    notion: NotionPort = Depends(get_notion_client),
+    telegram: TelegramPort = Depends(get_telegram_client),
     user_repo: UserRepository = Depends(get_user_repository),
     state_store: InMemoryStateStore = Depends(get_state_store),
 ) -> AuthService:

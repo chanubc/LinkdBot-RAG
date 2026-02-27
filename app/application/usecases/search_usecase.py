@@ -1,5 +1,5 @@
-from app.rag.reranker import SimpleReranker
-from app.rag.retriever import HybridRetriever
+from app.infrastructure.rag.reranker import SimpleReranker
+from app.infrastructure.rag.retriever import HybridRetriever
 
 
 class SearchUseCase:

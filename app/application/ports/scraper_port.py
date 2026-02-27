@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 
 
-class IScraperRepository(ABC):
-    """웹 스크래핑 인터페이스."""
+class ScraperPort(ABC):
+    """웹 스크래핑 Port."""
 
     @abstractmethod
     async def scrape(self, url: str) -> str:
