@@ -5,7 +5,7 @@ from fastapi import BackgroundTasks
 
 from app.application.services.message_router_service import MessageRouterService
 from app.domain.entities.intent import Intent
-from app.application.ports.intent_classifier_port import ClassifierOutput
+from app.application.ports.intent_router_port import RouterOutput as ClassifierOutput
 
 
 @pytest.fixture

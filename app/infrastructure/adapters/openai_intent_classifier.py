@@ -4,6 +4,7 @@ from openai import AsyncOpenAI
 
 from app.application.ports.intent_router_port import IntentRouterPort, RouterOutput
 from app.core.config import settings
+from app.core.llm_models import LLM_ROUTER
 from app.domain.entities.intent import Intent
 from app.prompts.intent_classifier import INTENT_CLASSIFIER_PROMPT
 
@@ -20,7 +21,7 @@ class OpenAIIntentClassifier(IntentRouterPort):
         """IntentRouterPort 구현: OpenAI로 Intent 분류."""
         try:
             response = await self._openai.beta.chat.completions.parse(
-                model="gpt-4.1-mini",
+                model=LLM_ROUTER,
                 messages=[
                     {"role": "system", "content": INTENT_CLASSIFIER_PROMPT},
                     {"role": "user", "content": text},

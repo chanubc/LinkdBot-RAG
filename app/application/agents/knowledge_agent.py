@@ -7,6 +7,7 @@ from app.application.ports.telegram_port import TelegramPort
 from app.application.ports.chat_completion_port import ChatCompletionPort
 from app.infrastructure.rag.reranker import SimpleReranker
 from app.infrastructure.rag.retriever import HybridRetriever
+from app.core.llm_models import LLM_AGENT
 from app.prompts.knowledge_agent import KNOWLEDGE_AGENT_PROMPT, TOOLS
 
 logger = logging.getLogger(__name__)
@@ -39,7 +40,7 @@ class KnowledgeAgent:
 
             response = await self._llm.chat_completions(
                 messages=messages,
-                model="gpt-4.1",
+                model=LLM_AGENT,
                 tools=TOOLS,
                 tool_choice="auto",
             )
@@ -70,7 +71,7 @@ class KnowledgeAgent:
 
             final_response = await self._llm.chat_completions(
                 messages=messages,
-                model="gpt-4.1",
+                model=LLM_AGENT,
             )
             answer = final_response.message.content or "답변을 생성할 수 없습니다."
             await self._telegram.send_message(telegram_id, answer)

@@ -1,6 +1,7 @@
 from openai import AsyncOpenAI
 
 from app.core.config import settings
+from app.core.llm_models import LLM_ANALYSIS
 from app.application.ports.ai_analysis_port import AIAnalysisPort
 from app.domain.entities.content_analysis import ContentAnalysis
 from app.prompts.analyze_content import ANALYZE_CONTENT_PROMPT
@@ -13,7 +14,7 @@ class OpenAIRepository(AIAnalysisPort):
     async def analyze_content(self, content: str) -> ContentAnalysis:
         """Extract title / summary / category / keywords from content."""
         response = await self._client.beta.chat.completions.parse(
-            model="gpt-4.1-mini",
+            model=LLM_ANALYSIS,
             messages=[
                 {"role": "system", "content": ANALYZE_CONTENT_PROMPT},
                 {"role": "user", "content": content[:8000]},
@@ -36,7 +37,7 @@ class OpenAIRepository(AIAnalysisPort):
     async def generate_briefing(self, prompt: str) -> str:
         """주간 브리핑 텍스트 생성."""
         response = await self._client.chat.completions.create(
-            model="gpt-4.1-mini",
+            model=LLM_ANALYSIS,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
         )
