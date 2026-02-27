@@ -41,6 +41,24 @@ class MessageRouterService:
         self._user_repo = user_repo
         self._auth_service = auth_service
 
+        # Slash command handlers map (OCP: new commands don't require editing route())
+        self._slash_handlers = {
+            "/start": self._handle_start_command,
+            "/help": self._handle_help_command,
+            "/memo": self._handle_memo_command,
+            "/ask": self._handle_ask_command,
+            "/search": self._handle_search_command,
+        }
+
+        # Intent handlers map (OCP: new intents don't require editing route())
+        self._intent_handlers = {
+            Intent.SEARCH: self._handle_search_intent,
+            Intent.MEMO: self._handle_memo_intent,
+            Intent.ASK: self._handle_ask_intent,
+            Intent.START: self._handle_start_intent,
+            Intent.HELP: self._handle_help_intent,
+        }
+
     async def _run_in_background(
         self, background_tasks: BackgroundTasks | None, coro, *args
     ) -> None:
@@ -66,22 +84,15 @@ class MessageRouterService:
         if not text.strip():
             return
 
-        # 슬래쉬 명령어 처리
+        # 슬래쉬 명령어 처리 (Dictionary dispatch)
         if text.startswith("/"):
             parts = text.split(maxsplit=1)
             command = parts[0]
             payload = parts[1] if len(parts) > 1 else ""
 
-            if command == "/start":
-                await self._handle_start(telegram_id)
-            elif command == "/help":
-                await self._handle_help(telegram_id)
-            elif command == "/memo":
-                await self._process_memo(telegram_id, payload, background_tasks)
-            elif command == "/ask":
-                await self._process_ask(telegram_id, payload, background_tasks)
-            elif command == "/search":
-                await self._process_search(telegram_id, payload)
+            handler = self._slash_handlers.get(command)
+            if handler:
+                await handler(telegram_id, payload, background_tasks)
             return
 
         # 일반 텍스트 → Intent 분류 (Port 사용)
@@ -97,17 +108,10 @@ class MessageRouterService:
             return
 
         try:
-            if routed.intent == Intent.SEARCH:
-                await self._process_search(telegram_id, effective_query)
-            elif routed.intent == Intent.MEMO:
-                await self._process_memo(telegram_id, effective_query, background_tasks)
-            elif routed.intent == Intent.ASK:
-                await self._process_ask(telegram_id, effective_query, background_tasks)
-            elif routed.intent == Intent.START:
-                await self._handle_start(telegram_id)
-            elif routed.intent == Intent.HELP:
-                await self._handle_help(telegram_id)
-            else:  # UNKNOWN
+            handler = self._intent_handlers.get(routed.intent)
+            if handler:
+                await handler(telegram_id, effective_query, background_tasks)
+            else:  # UNKNOWN intent
                 await self._telegram.send_message(
                     telegram_id,
                     "봇 사용법이 궁금하시면 /help 를 입력해보세요.",
@@ -184,9 +188,73 @@ class MessageRouterService:
             await self._telegram.send_message(telegram_id, "/start 처리 중 오류가 발생했습니다.")
 
     async def _handle_help(self, telegram_id: int) -> None:
-        """도움말 명령어 처리."""
+        """도움말 명령어 처리 (내부 구현)."""
         try:
             await self._telegram.send_help_message(telegram_id)
         except Exception as e:
             logger.exception("Error handling help: %s", e)
             await self._telegram.send_message(telegram_id, "/help 처리 중 오류가 발생했습니다.")
+
+    # --- Unified Slash Command Handlers (for dictionary dispatch) ---
+
+    async def _handle_start_command(
+        self, telegram_id: int, payload: str, background_tasks: BackgroundTasks | None
+    ) -> None:
+        """Slash command /start handler."""
+        await self._handle_start(telegram_id)
+
+    async def _handle_help_command(
+        self, telegram_id: int, payload: str, background_tasks: BackgroundTasks | None
+    ) -> None:
+        """Slash command /help handler."""
+        await self._handle_help(telegram_id)
+
+    async def _handle_memo_command(
+        self, telegram_id: int, payload: str, background_tasks: BackgroundTasks | None
+    ) -> None:
+        """Slash command /memo handler."""
+        await self._process_memo(telegram_id, payload, background_tasks)
+
+    async def _handle_ask_command(
+        self, telegram_id: int, payload: str, background_tasks: BackgroundTasks | None
+    ) -> None:
+        """Slash command /ask handler."""
+        await self._process_ask(telegram_id, payload, background_tasks)
+
+    async def _handle_search_command(
+        self, telegram_id: int, payload: str, background_tasks: BackgroundTasks | None
+    ) -> None:
+        """Slash command /search handler."""
+        await self._process_search(telegram_id, payload)
+
+    # --- Unified Intent Handlers (for dictionary dispatch) ---
+
+    async def _handle_search_intent(
+        self, telegram_id: int, query: str, background_tasks: BackgroundTasks | None
+    ) -> None:
+        """Intent.SEARCH handler."""
+        await self._process_search(telegram_id, query)
+
+    async def _handle_memo_intent(
+        self, telegram_id: int, query: str, background_tasks: BackgroundTasks | None
+    ) -> None:
+        """Intent.MEMO handler."""
+        await self._process_memo(telegram_id, query, background_tasks)
+
+    async def _handle_ask_intent(
+        self, telegram_id: int, query: str, background_tasks: BackgroundTasks | None
+    ) -> None:
+        """Intent.ASK handler."""
+        await self._process_ask(telegram_id, query, background_tasks)
+
+    async def _handle_start_intent(
+        self, telegram_id: int, query: str, background_tasks: BackgroundTasks | None
+    ) -> None:
+        """Intent.START handler."""
+        await self._handle_start(telegram_id)
+
+    async def _handle_help_intent(
+        self, telegram_id: int, query: str, background_tasks: BackgroundTasks | None
+    ) -> None:
+        """Intent.HELP handler."""
+        await self._handle_help(telegram_id)
