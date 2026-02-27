@@ -2,8 +2,8 @@ import logging
 
 from fastapi import BackgroundTasks
 
-from app.application.ports.agent_port import AgentPort
-from app.application.ports.intent_classifier_port import IntentClassifierPort
+from app.application.ports.knowledge_agent_port import KnowledgeAgentPort
+from app.application.ports.intent_router_port import IntentRouterPort
 from app.application.ports.telegram_port import TelegramPort
 from app.application.usecases.save_memo_usecase import SaveMemoUseCase
 from app.application.usecases.search_usecase import SearchUseCase
@@ -25,8 +25,8 @@ class MessageRouterService:
 
     def __init__(
         self,
-        intent_classifier: IntentClassifierPort,  # Port: Intent 분류
-        agent: AgentPort,  # Port: AI Agent 실행
+        intent_classifier: IntentRouterPort,  # Port: LLM 분기 결정
+        agent: KnowledgeAgentPort,  # Port: 지식 처리 실행
         search_uc: SearchUseCase,
         save_memo_uc: SaveMemoUseCase,
         telegram: TelegramPort,

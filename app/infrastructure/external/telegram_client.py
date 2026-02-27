@@ -16,10 +16,17 @@ class TelegramRepository(TelegramPort):
 
     async def send_message(self, chat_id: int, text: str) -> None:
         async with httpx.AsyncClient() as client:
-            await client.post(
+            resp = await client.post(
                 f"{self._base}/sendMessage",
                 json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"},
             )
+            if not resp.is_success:
+                logger.error(
+                    "send_message failed %s: %s | text=%r",
+                    resp.status_code,
+                    resp.text,
+                    text[:200],
+                )
 
     async def send_notion_connect_button(self, chat_id: int, login_url: str) -> None:
         """Notion 연동 인라인 버튼 전송 (도움말 버튼 포함)."""
@@ -54,7 +61,14 @@ class TelegramRepository(TelegramPort):
                 "inline_keyboard": [[{"text": "📓 Notion에서 보기", "url": notion_url}]]
             }
         async with httpx.AsyncClient() as client:
-            await client.post(f"{self._base}/sendMessage", json=payload)
+            resp = await client.post(f"{self._base}/sendMessage", json=payload)
+            if not resp.is_success:
+                logger.error(
+                    "send_link_saved_message failed %s: %s | text=%r",
+                    resp.status_code,
+                    resp.text,
+                    text[:200],
+                )
 
     async def answer_callback_query(self, callback_query_id: str) -> None:
         """콜백 버튼 로딩 스피너 해제."""
@@ -135,6 +149,24 @@ class TelegramRepository(TelegramPort):
                 f"{self._base}/setWebhook",
                 json={"url": url},
             )
+            resp.raise_for_status()
+
+    async def send_weekly_report(
+        self,
+        chat_id: int,
+        text: str,
+        link_id: int | None = None,
+    ) -> None:
+        """주간 리포트 전송. link_id 있으면 [읽음 처리] 인라인 버튼 포함."""
+        payload: dict = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+        if link_id is not None:
+            payload["reply_markup"] = {
+                "inline_keyboard": [[
+                    {"text": "✅ 읽음 처리", "callback_data": f"mark_read:{link_id}"},
+                ]]
+            }
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(f"{self._base}/sendMessage", json=payload)
             resp.raise_for_status()
 
     async def register_commands(self) -> bool:

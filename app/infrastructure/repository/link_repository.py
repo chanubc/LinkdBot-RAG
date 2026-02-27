@@ -1,4 +1,6 @@
-from sqlalchemy import select
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +21,8 @@ class LinkRepository(ILinkRepository):
         category: str,
         keywords: str,
         memo: str | None = None,
+        content_source: str | None = None,
+        summary_embedding: list[float] | None = None,
     ) -> Link | None:
         """URL 링크 저장. 중복(user_id + url) 시 None 반환."""
         stmt = (
@@ -31,6 +35,8 @@ class LinkRepository(ILinkRepository):
                 category=category,
                 keywords=keywords,
                 memo=memo,
+                content_source=content_source,
+                summary_embedding=summary_embedding,
             )
             .on_conflict_do_nothing(constraint="uq_user_url")
             .returning(Link)
@@ -69,3 +75,105 @@ class LinkRepository(ILinkRepository):
             .limit(limit)
         )
         return list(result.scalars().all())
+
+    # --- Phase 3: Proactive Agent ---
+
+    async def get_categories_by_period(
+        self,
+        user_id: int,
+        start: datetime,
+        end: datetime,
+    ) -> list[str]:
+        """기간 내 저장된 링크의 카테고리 목록 반환."""
+        result = await self._db.execute(
+            select(Link.category).where(
+                Link.user_id == user_id,
+                Link.created_at >= start,
+                Link.created_at < end,
+                Link.url.isnot(None),  # 메모 제외
+            )
+        )
+        return list(result.scalars().all())
+
+    async def get_summary_embeddings_by_period(
+        self,
+        user_id: int,
+        start: datetime,
+        end: datetime,
+    ) -> list[list[float]]:
+        """기간 내 저장된 링크의 summary_embedding 목록 반환 (None 제외)."""
+        result = await self._db.execute(
+            select(Link.summary_embedding).where(
+                Link.user_id == user_id,
+                Link.created_at >= start,
+                Link.created_at < end,
+                Link.summary_embedding.isnot(None),
+            )
+        )
+        return [list(emb) for emb in result.scalars().all()]
+
+    async def get_reactivation_candidates(
+        self,
+        user_id: int,
+        older_than_days: int = 7,
+        excluded_ids: list[int] | None = None,
+    ) -> list[dict]:
+        """재활성화 후보 링크 조회.
+
+        조건:
+        - is_read=False
+        - created_at < now - older_than_days
+        - summary_embedding IS NOT NULL
+        - excluded_ids에 없는 링크
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(days=older_than_days)
+        stmt = select(
+            Link.id,
+            Link.title,
+            Link.url,
+            Link.summary,
+            Link.category,
+            Link.summary_embedding,
+            Link.created_at,
+        ).where(
+            Link.user_id == user_id,
+            Link.is_read.is_(False),
+            Link.created_at < cutoff,
+            Link.summary_embedding.isnot(None),
+        )
+        if excluded_ids:
+            stmt = stmt.where(Link.id.notin_(excluded_ids))
+
+        result = await self._db.execute(stmt)
+        rows = result.mappings().all()
+        return [
+            {
+                "link_id": r["id"],
+                "title": r["title"],
+                "url": r["url"],
+                "summary": r["summary"],
+                "category": r["category"],
+                "summary_embedding": list(r["summary_embedding"]),
+                "created_at": r["created_at"],
+            }
+            for r in rows
+        ]
+
+    async def get_all_summary_embeddings(
+        self,
+        user_id: int,
+    ) -> list[list[float]]:
+        """전체 링크의 summary_embedding 목록 반환 (None 제외, centroid 폴백용)."""
+        result = await self._db.execute(
+            select(Link.summary_embedding).where(
+                Link.user_id == user_id,
+                Link.summary_embedding.isnot(None),
+            )
+        )
+        return [list(emb) for emb in result.scalars().all()]
+
+    async def mark_as_read(self, link_id: int) -> None:
+        """링크 읽음 처리."""
+        await self._db.execute(
+            update(Link).where(Link.id == link_id).values(is_read=True)
+        )

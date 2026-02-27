@@ -52,3 +52,13 @@ class TelegramPort(ABC):
     async def register_commands(self) -> bool:
         """봇 명령어 자동완성 등록 (setMyCommands)."""
         pass
+
+    @abstractmethod
+    async def send_weekly_report(
+        self,
+        chat_id: int,
+        text: str,
+        link_id: int | None = None,
+    ) -> None:
+        """주간 리포트 전송. link_id 있으면 [읽음 처리] 인라인 버튼 포함."""
+        pass

@@ -20,3 +20,6 @@ class IUserRepository(ABC):
 
     @abstractmethod
     async def get_decrypted_token(self, telegram_id: int) -> str | None: ...
+
+    @abstractmethod
+    async def get_all_users(self) -> list[User]: ...

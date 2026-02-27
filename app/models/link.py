@@ -1,3 +1,4 @@
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     BigInteger,
     Boolean,
@@ -32,6 +33,8 @@ class Link(Base):
     memo = Column(Text, nullable=True)
     is_read = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    content_source = Column(String, nullable=True)
+    summary_embedding = Column(Vector(1536), nullable=True)
 
     chunks = relationship("Chunk", back_populates="link", cascade="all, delete-orphan")
 

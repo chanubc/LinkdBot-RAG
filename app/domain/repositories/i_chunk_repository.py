@@ -15,4 +15,5 @@ class IChunkRepository(ABC):
         user_id: int,
         query_embedding: list[float],
         top_k: int = 5,
+        query_text: str = "",
     ) -> list[dict]: ...

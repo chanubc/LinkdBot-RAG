@@ -4,13 +4,13 @@ from openai import AsyncOpenAI
 
 from app.core.config import settings
 from app.application.models.llm import LLMChatCompletion, LLMMessage, LLMTool
-from app.application.ports.llm_gateway_port import LLMGatewayPort
+from app.application.ports.chat_completion_port import ChatCompletionPort
 
 logger = logging.getLogger(__name__)
 
 
-class OpenAILLMGateway(LLMGatewayPort):
-    """OpenAI API adapter for LLMGatewayPort."""
+class OpenAILLMGateway(ChatCompletionPort):
+    """OpenAI API adapter for ChatCompletionPort."""
 
     def __init__(self) -> None:
         self._client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)

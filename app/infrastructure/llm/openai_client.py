@@ -1,38 +1,30 @@
-import json
-
 from openai import AsyncOpenAI
 
 from app.core.config import settings
-from app.application.ports.openai_llm_port import OpenAILLMPort
+from app.core.llm_models import LLM_ANALYSIS
+from app.application.ports.ai_analysis_port import AIAnalysisPort
+from app.domain.entities.content_analysis import ContentAnalysis
+from app.core.prompts.analyze_content import ANALYZE_CONTENT_PROMPT
 
 
-class OpenAIRepository(OpenAILLMPort):
+class OpenAIRepository(AIAnalysisPort):
     def __init__(self) -> None:
         self._client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
-    async def analyze_content(self, content: str) -> dict:
-        """GPT-4o로 제목 / 요약 / 카테고리 / 키워드 추출."""
-        prompt = f"""다음 웹 콘텐츠를 분석하여 JSON으로 반환하세요.
-
-콘텐츠:
-{content[:8000]}
-
-반환 형식:
-{{
-  "title": "콘텐츠 제목 (한 줄, 50자 이내)",
-  "summary": "핵심 내용 3줄 요약",
-  "category": "AI | Dev | Career | Business | Science | Other 중 하나",
-  "keywords": ["키워드1", "키워드2", "키워드3", "키워드4", "키워드5"]
-}}
-
-JSON만 반환하세요."""
-
-        response = await self._client.chat.completions.create(
-            model="gpt-4o",
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
+    async def analyze_content(self, content: str) -> ContentAnalysis:
+        """Extract title / summary / category / keywords from content."""
+        response = await self._client.beta.chat.completions.parse(
+            model=LLM_ANALYSIS,
+            messages=[
+                {"role": "system", "content": ANALYZE_CONTENT_PROMPT},
+                {"role": "user", "content": content[:8000]},
+            ],
+            response_format=ContentAnalysis,
         )
-        return json.loads(response.choices[0].message.content)
+        result = response.choices[0].message.parsed
+        if result is None:
+            raise ValueError("Content analysis returned no result")
+        return result
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         """text-embedding-3-small으로 벡터 임베딩 생성."""
@@ -41,3 +33,12 @@ JSON만 반환하세요."""
             input=texts,
         )
         return [item.embedding for item in response.data]
+
+    async def generate_briefing(self, prompt: str) -> str:
+        """주간 브리핑 텍스트 생성."""
+        response = await self._client.chat.completions.create(
+            model=LLM_ANALYSIS,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,
+        )
+        return response.choices[0].message.content or ""

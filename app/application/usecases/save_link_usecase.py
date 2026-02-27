@@ -1,3 +1,4 @@
+import html
 import json
 import logging
 
@@ -5,12 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.repositories.i_chunk_repository import IChunkRepository
 from app.domain.repositories.i_link_repository import ILinkRepository
+from app.application.ports.ai_analysis_port import AIAnalysisPort
 from app.application.ports.notion_port import NotionPort
-from app.application.ports.openai_llm_port import OpenAILLMPort
 from app.application.ports.scraper_port import ScraperPort
 from app.application.ports.telegram_port import TelegramPort
 from app.domain.repositories.i_user_repository import IUserRepository
-from app.utils.text import split_chunks
+from app.utils.text import split_chunks, split_markdown
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ class SaveLinkUseCase:
         user_repo: IUserRepository,
         link_repo: ILinkRepository,
         chunk_repo: IChunkRepository,
-        openai: OpenAILLMPort,
+        openai: AIAnalysisPort,
         scraper: ScraperPort,
         telegram: TelegramPort,
         notion: NotionPort,
@@ -46,17 +47,23 @@ class SaveLinkUseCase:
             await self._telegram.send_message(telegram_id, "🔍 링크를 저장하는 중입니다...")
 
             # 1. Scrape
-            content = await self._scraper.scrape(url)
+            content, content_source = await self._scraper.scrape(url)
             if memo:
                 content = f"{content}\n\n{memo}"
 
             # 2. Analyze
             analysis = await self._openai.analyze_content(content)
-            title: str = analysis.get("title") or url
-            summary: str = analysis.get("summary", "")
-            category: str = analysis.get("category", "Other")
-            keywords: list[str] = analysis.get("keywords", [])
+            title: str = analysis.title or url
+            summary: str = analysis.summary
+            category: str = analysis.category
+            keywords: list[str] = analysis.keywords
             keywords_json = json.dumps(keywords, ensure_ascii=False)
+
+            # 2-1. Summary 임베딩 생성 (Drift/Reactivation 계산용)
+            if summary:
+                [summary_embedding] = await self._openai.embed([summary])
+            else:
+                summary_embedding = None
 
             # 3. DB 저장
             await self._user_repo.ensure_exists(telegram_id)
@@ -68,13 +75,18 @@ class SaveLinkUseCase:
                 category=category,
                 keywords=keywords_json,
                 memo=memo,
+                content_source=content_source,
+                summary_embedding=summary_embedding,
             )
             if link is None:
                 await self._telegram.send_message(telegram_id, "⚠️ 이미 저장된 링크입니다.")
                 return
 
-            # 4. Embed & chunk 저장
-            raw_chunks = split_chunks(content)
+            # 4. Embed & chunk 저장 (Jina 콘텐츠면 Markdown 분할, 아니면 단어 분할)
+            if content_source == "jina":
+                raw_chunks = split_markdown(content)
+            else:
+                raw_chunks = split_chunks(content)
             if raw_chunks:
                 embeddings = await self._openai.embed(raw_chunks)
                 await self._chunk_repo.save_chunks(link.id, list(zip(raw_chunks, embeddings)))
@@ -96,7 +108,7 @@ class SaveLinkUseCase:
 
         except Exception as exc:
             await self._telegram.send_message(
-                telegram_id, f"❌ 처리 실패: {str(exc)[:200]}"
+                telegram_id, f"❌ 처리 실패: {html.escape(str(exc)[:200])}"
             )
 
     async def _save_to_notion(
@@ -139,7 +151,7 @@ def _build_done_message(
 ) -> str:
     return (
         f"✅ 저장 완료!\n\n"
-        f"📌 <b>{title}</b>\n"
-        f"📂 {category}  |  🔑 {', '.join(keywords)}\n\n"
-        f"📝 {summary}"
+        f"📌 <b>{html.escape(title)}</b>\n"
+        f"📂 {html.escape(category)}  |  🔑 {html.escape(', '.join(keywords))}\n\n"
+        f"📝 {html.escape(summary)}"
     )

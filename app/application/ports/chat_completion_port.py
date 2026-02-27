@@ -3,14 +3,14 @@ from abc import ABC, abstractmethod
 from app.application.models.llm import LLMChatCompletion, LLMMessage, LLMTool
 
 
-class LLMGatewayPort(ABC):
-    """Framework-independent LLM calling Port (Function Calling, chat, etc.)."""
+class ChatCompletionPort(ABC):
+    """Framework-independent LLM chat completion Port (Function Calling, chat, etc.)."""
 
     @abstractmethod
     async def chat_completions(
         self,
         messages: list[LLMMessage],
-        model: str = "gpt-4o",
+        model: str = "gpt-4.1",
         tools: list[LLMTool] | None = None,
         tool_choice: str = "auto",
         temperature: float = 0.7,

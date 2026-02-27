@@ -58,3 +58,8 @@ class UserRepository(IUserRepository):
         if not user or not user.notion_access_token:
             return None
         return _fernet.decrypt(user.notion_access_token.encode()).decode()
+
+    async def get_all_users(self) -> list:
+        """모든 유저 목록 반환 (스케줄러용)."""
+        result = await self._db.execute(select(User))
+        return list(result.scalars().all())

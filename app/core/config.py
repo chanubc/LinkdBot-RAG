@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     NOTION_CLIENT_SECRET: str
     NOTION_REDIRECT_URI: str
     ENCRYPTION_KEY: str  # Fernet key
+    JINA_API_KEY: str | None = None
     TELEGRAM_TEST_ID: int | None = None
 
     model_config = {"env_file": ".env"}

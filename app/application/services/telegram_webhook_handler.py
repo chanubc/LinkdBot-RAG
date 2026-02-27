@@ -1,10 +1,12 @@
 import logging
 
 from fastapi import BackgroundTasks
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.services.message_router_service import MessageRouterService
 from app.application.ports.telegram_port import TelegramPort
 from app.application.usecases.save_link_usecase import SaveLinkUseCase
+from app.domain.repositories.i_link_repository import ILinkRepository
 from app.domain.repositories.i_user_repository import IUserRepository
 from app.utils.text import extract_urls
 
@@ -19,15 +21,19 @@ class TelegramWebhookHandler:
 
     def __init__(
         self,
+        db: AsyncSession,
         message_router: MessageRouterService,
         telegram: TelegramPort,
         save_link_uc: SaveLinkUseCase,
         user_repo: IUserRepository,
+        link_repo: ILinkRepository,
     ):
+        self._db = db
         self._message_router = message_router
         self._telegram = telegram
         self._save_link_uc = save_link_uc
         self._user_repo = user_repo
+        self._link_repo = link_repo
 
     async def handle(self, data: dict, background_tasks: BackgroundTasks) -> None:
         """웹훅 수신 후 callback/URL/message로 분기."""
@@ -72,9 +78,20 @@ class TelegramWebhookHandler:
         background_tasks.add_task(self._message_router.route, telegram_id, text, None)
 
     async def _handle_callback(self, callback: dict) -> None:
-        """콜백 쿼리 처리 (도움말 버튼 등)."""
+        """콜백 쿼리 처리 (도움말 버튼, 읽음 처리 버튼 등)."""
         await self._telegram.answer_callback_query(callback["id"])
-        if callback.get("data") == "help":
-            chat_id: int | None = (callback.get("from") or {}).get("id")
-            if chat_id:
-                await self._telegram.send_help_message(chat_id)
+        data = callback.get("data", "")
+        chat_id: int | None = (callback.get("from") or {}).get("id")
+        if not chat_id:
+            return
+
+        if data == "help":
+            await self._telegram.send_help_message(chat_id)
+        elif data.startswith("mark_read:"):
+            try:
+                link_id = int(data.split(":", 1)[1])
+                await self._link_repo.mark_as_read(link_id)
+                await self._db.commit()
+                await self._telegram.send_message(chat_id, "✅ 읽음 처리되었습니다.")
+            except Exception as exc:
+                logger.warning("mark_read callback failed: %s", exc)
