@@ -37,8 +37,14 @@ class SaveLinkUseCase:
         self._notion = notion
 
     async def execute(self, telegram_id: int, url: str, memo: str | None = None) -> None:
-        """링크 처리 파이프라인 (BackgroundTask로 비동기 실행)."""
+        """링크 처리 파이프라인 (BackgroundTask로 비동기 실행).
+
+        웹훅은 이 함수 호출 즉시 응답하므로, 모든 사용자 피드백은 이 함수 내에서 관리됨.
+        """
         try:
+            # 0. 즉시 피드백 (사용자에게 처리 시작 알림)
+            await self._telegram.send_message(telegram_id, "🔍 링크를 저장하는 중입니다...")
+
             # 1. Scrape
             content = await self._scraper.scrape(url)
             if memo:

@@ -53,7 +53,9 @@ class TelegramWebhookHandler:
         if urls:
             for url in urls:
                 logger.info("Processing URL from %s: %s", telegram_id, url)
-                await self._telegram.send_message(telegram_id, "🔍 링크를 저장하는 중입니다...")
+                # Background task로 SaveLinkUseCase 실행
+                # SaveLinkUseCase 내부에서 "저장 중", "완료/실패" 메시지 관리
+                # 웹훅은 즉시 응답 (< 100ms)
                 background_tasks.add_task(self._save_link_uc.execute, telegram_id, url, memo)
             return
 
