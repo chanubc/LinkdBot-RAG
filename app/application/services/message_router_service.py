@@ -130,7 +130,7 @@ class MessageRouterService:
     async def _process_memo(
         self, telegram_id: int, payload: str, background_tasks: BackgroundTasks | None
     ) -> None:
-        """메모 저장 처리."""
+        """메모 저장 처리 (비동기 피드백 포함)."""
         if not payload:
             await self._telegram.send_message(
                 telegram_id,
@@ -138,8 +138,8 @@ class MessageRouterService:
             )
             return
 
+        # 웹훅은 즉시 응답, SaveMemoUseCase 내부에서 모든 피드백 관리
         try:
-            await self._telegram.send_message(telegram_id, "📝 메모를 저장하는 중입니다...")
             await self._run_in_background(
                 background_tasks, self._save_memo_uc.execute, telegram_id, payload
             )
@@ -167,7 +167,7 @@ class MessageRouterService:
     async def _process_search(
         self, telegram_id: int, payload: str, background_tasks: BackgroundTasks | None = None
     ) -> None:
-        """검색 처리."""
+        """검색 처리 (비동기 결과 반환)."""
         if not payload:
             await self._telegram.send_message(
                 telegram_id,
@@ -175,9 +175,11 @@ class MessageRouterService:
             )
             return
 
+        # 웹훅은 즉시 응답, 검색과 결과 전송은 background (검색 + 결과 전송을 한 번에)
         try:
-            results = await self._search_uc.execute(telegram_id, payload)
-            await self._telegram.send_search_results(telegram_id, payload, results)
+            await self._run_in_background(
+                background_tasks, self._execute_search_and_send_results, telegram_id, payload
+            )
         except Exception as e:
             logger.exception("Error searching: %s", e)
             await self._telegram.send_message(telegram_id, "검색 중 오류가 발생했습니다.")
@@ -185,15 +187,12 @@ class MessageRouterService:
     async def _handle_start(
         self, telegram_id: int, payload: str = "", background_tasks: BackgroundTasks | None = None
     ) -> None:
-        """시작 명령어 처리."""
+        """시작 명령어 처리 (비동기 피드백)."""
+        # 웹훅은 즉시 응답, 실제 처리는 background
         try:
-            user = await self._user_repo.get_by_telegram_id(telegram_id)
-            if user and user.notion_access_token:
-                first_name: str | None = user.first_name
-                await self._telegram.send_welcome_connected(telegram_id, first_name)
-            else:
-                login_url = self._auth_service.create_login_url(telegram_id)
-                await self._telegram.send_notion_connect_button(telegram_id, login_url)
+            await self._run_in_background(
+                background_tasks, self._send_start_message, telegram_id
+            )
         except Exception as e:
             logger.exception("Error handling start: %s", e)
             await self._telegram.send_message(telegram_id, "/start 처리 중 오류가 발생했습니다.")
@@ -201,10 +200,33 @@ class MessageRouterService:
     async def _handle_help(
         self, telegram_id: int, payload: str = "", background_tasks: BackgroundTasks | None = None
     ) -> None:
-        """도움말 명령어 처리."""
+        """도움말 명령어 처리 (비동기 피드백)."""
+        # 웹훅은 즉시 응답, 도움말 메시지는 background로 전송
         try:
-            await self._telegram.send_help_message(telegram_id)
+            await self._run_in_background(
+                background_tasks, self._telegram.send_help_message, telegram_id
+            )
         except Exception as e:
             logger.exception("Error handling help: %s", e)
             await self._telegram.send_message(telegram_id, "/help 처리 중 오류가 발생했습니다.")
+
+    async def _send_start_message(self, telegram_id: int) -> None:
+        """Start 명령어 응답 메시지 전송."""
+        user = await self._user_repo.get_by_telegram_id(telegram_id)
+        if user and user.notion_access_token:
+            first_name: str | None = user.first_name
+            await self._telegram.send_welcome_connected(telegram_id, first_name)
+        else:
+            login_url = self._auth_service.create_login_url(telegram_id)
+            await self._telegram.send_notion_connect_button(telegram_id, login_url)
+
+    async def _execute_search_and_send_results(self, telegram_id: int, query: str) -> None:
+        """검색 실행 및 결과 전송 (background에서 실행)."""
+        try:
+            await self._telegram.send_message(telegram_id, "🔍 검색 중입니다...")
+            results = await self._search_uc.execute(telegram_id, query)
+            await self._telegram.send_search_results(telegram_id, query, results)
+        except Exception as e:
+            logger.exception("Error executing search: %s", e)
+            await self._telegram.send_message(telegram_id, "검색 중 오류가 발생했습니다.")
 
