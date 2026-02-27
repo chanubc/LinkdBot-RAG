@@ -190,6 +190,18 @@ async def test_unknown_intent_handling(router_service, mock_dependencies):
 
 
 @pytest.mark.asyncio
+async def test_unknown_slash_command_feedback(router_service, mock_dependencies):
+    """Test that unknown slash commands receive feedback (not silent failure)."""
+    await router_service.route(123, "/unknown command arg", None)
+
+    # Should send error message about unknown command
+    mock_dependencies["telegram"].send_message.assert_called()
+    args = mock_dependencies["telegram"].send_message.call_args[0]
+    assert "알 수 없는 명령어" in args[1]
+    assert "/help" in args[1]
+
+
+@pytest.mark.asyncio
 async def test_handler_map_extensibility(router_service):
     """Test that handler map can be extended with new handlers."""
     # Verify handler maps exist
@@ -203,11 +215,25 @@ async def test_handler_map_extensibility(router_service):
     assert "/ask" in router_service._slash_handlers
     assert "/search" in router_service._slash_handlers
 
+    # Verify handlers point to core methods (no wrapper indirection)
+    assert router_service._slash_handlers["/start"] == router_service._handle_start
+    assert router_service._slash_handlers["/help"] == router_service._handle_help
+    assert router_service._slash_handlers["/memo"] == router_service._process_memo
+    assert router_service._slash_handlers["/ask"] == router_service._process_ask
+    assert router_service._slash_handlers["/search"] == router_service._process_search
+
     assert Intent.SEARCH in router_service._intent_handlers
     assert Intent.MEMO in router_service._intent_handlers
     assert Intent.ASK in router_service._intent_handlers
     assert Intent.START in router_service._intent_handlers
     assert Intent.HELP in router_service._intent_handlers
+
+    # Verify intent handlers also point directly to core methods
+    assert router_service._intent_handlers[Intent.SEARCH] == router_service._process_search
+    assert router_service._intent_handlers[Intent.MEMO] == router_service._process_memo
+    assert router_service._intent_handlers[Intent.ASK] == router_service._process_ask
+    assert router_service._intent_handlers[Intent.START] == router_service._handle_start
+    assert router_service._intent_handlers[Intent.HELP] == router_service._handle_help
 
 
 @pytest.mark.asyncio
