@@ -20,6 +20,9 @@ class LLMMessage:
     tool_call_id: str | None = None
     """Optional: Tool call ID for tool responses."""
 
+    tool_calls: list[dict] | None = None
+    """Optional: Tool calls made by the assistant (Function Calling)."""
+
     metadata: dict[str, Any] = field(default_factory=dict)
     """Optional: Provider-specific extended metadata."""
 

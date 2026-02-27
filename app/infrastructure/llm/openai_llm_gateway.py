@@ -63,6 +63,8 @@ class OpenAILLMGateway(LLMGatewayPort):
                 for tc in message.tool_calls
             ]
 
+        response_message.tool_calls = tool_calls
+
         return LLMChatCompletion(
             message=response_message,
             tool_calls=tool_calls,
@@ -72,7 +74,7 @@ class OpenAILLMGateway(LLMGatewayPort):
     @staticmethod
     def _message_to_openai(msg: LLMMessage) -> dict:
         """Convert LLMMessage to OpenAI format."""
-        openai_msg = {
+        openai_msg: dict = {
             "role": msg.role,
             "content": msg.content,
         }
@@ -80,6 +82,15 @@ class OpenAILLMGateway(LLMGatewayPort):
             openai_msg["name"] = msg.name
         if msg.tool_call_id:
             openai_msg["tool_call_id"] = msg.tool_call_id
+        if msg.tool_calls:
+            openai_msg["tool_calls"] = [
+                {
+                    "id": tc["id"],
+                    "type": "function",
+                    "function": tc["function"],
+                }
+                for tc in msg.tool_calls
+            ]
         return openai_msg
 
     @staticmethod
