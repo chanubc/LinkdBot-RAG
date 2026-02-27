@@ -152,7 +152,8 @@ class TelegramRepository(TelegramPort):
                 ]]
             }
         async with httpx.AsyncClient() as client:
-            await client.post(f"{self._base}/sendMessage", json=payload)
+            resp = await client.post(f"{self._base}/sendMessage", json=payload)
+            resp.raise_for_status()
 
     async def register_commands(self) -> bool:
         """봇 명령어 자동완성 등록 (setMyCommands).
