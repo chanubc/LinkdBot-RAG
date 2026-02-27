@@ -56,8 +56,3 @@ logs/
 .claude/settings.local.json
 tmpclaude-*
 
-# Test HTTP files (manual testing, secrets may be included)
-test/*.http
-
-# IDE REST Client extensions
-*.http

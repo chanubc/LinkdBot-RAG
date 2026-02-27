@@ -1,0 +1,175 @@
+@base_url = http://localhost:8000
+@telegram_id = {{$dotenv TELEGRAM_TEST_ID}}
+
+### ──────────────────────────────────────────
+### /start — Notion 미연동 유저
+### ──────────────────────────────────────────
+POST {{base_url}}/api/v1/webhook/telegram
+Content-Type: application/json
+
+{
+  "update_id": 100000001,
+  "message": {
+    "message_id": 1,
+    "from": { "id": {{telegram_id}}, "is_bot": false, "first_name": "TestUser" },
+    "chat": { "id": {{telegram_id}}, "type": "private" },
+    "date": 1700000000,
+    "text": "/start"
+  }
+}
+
+### ──────────────────────────────────────────
+### /start — Notion 연동 완료 유저 (환영 메시지)
+### ──────────────────────────────────────────
+POST {{base_url}}/api/v1/webhook/telegram
+Content-Type: application/json
+
+{
+  "update_id": 100000002,
+  "message": {
+    "message_id": 2,
+    "from": { "id": {{telegram_id}}, "is_bot": false, "first_name": "개발자" },
+    "chat": { "id": {{telegram_id}}, "type": "private" },
+    "date": 1700000000,
+    "text": "/start"
+  }
+}
+
+### ──────────────────────────────────────────
+### URL 저장 — 링크 처리 파이프라인
+### ──────────────────────────────────────────
+POST {{base_url}}/api/v1/webhook/telegram
+Content-Type: application/json
+
+{
+  "update_id": 100000003,
+  "message": {
+    "message_id": 3,
+    "from": { "id": {{telegram_id}}, "is_bot": false, "first_name": "TestUser" },
+    "chat": { "id": {{telegram_id}}, "type": "private" },
+    "date": 1700000000,
+    "text": "https://github.com/tiangolo/fastapi"
+  }
+}
+
+### ──────────────────────────────────────────
+### URL + 메모 함께 전송
+### ──────────────────────────────────────────
+POST {{base_url}}/api/v1/webhook/telegram
+Content-Type: application/json
+
+{
+  "update_id": 100000004,
+  "message": {
+    "message_id": 4,
+    "from": { "id": {{telegram_id}}, "is_bot": false, "first_name": "TestUser" },
+    "chat": { "id": {{telegram_id}}, "type": "private" },
+    "date": 1700000000,
+    "text": "https://github.com/tiangolo/fastapi 나중에 꼭 다시 읽기"
+  }
+}
+
+### ──────────────────────────────────────────
+### /memo — 메모 저장
+### ──────────────────────────────────────────
+POST {{base_url}}/api/v1/webhook/telegram
+Content-Type: application/json
+
+{
+  "update_id": 100000005,
+  "message": {
+    "message_id": 5,
+    "from": { "id": {{telegram_id}}, "is_bot": false, "first_name": "TestUser" },
+    "chat": { "id": {{telegram_id}}, "type": "private" },
+    "date": 1700000000,
+    "text": "/memo 오늘 배운 파이썬 asyncio 정리"
+  }
+}
+
+### ──────────────────────────────────────────
+### /memo — 내용 없음 (에러 안내 메시지 확인)
+### ──────────────────────────────────────────
+POST {{base_url}}/api/v1/webhook/telegram
+Content-Type: application/json
+
+{
+  "update_id": 100000006,
+  "message": {
+    "message_id": 6,
+    "from": { "id": {{telegram_id}}, "is_bot": false, "first_name": "TestUser" },
+    "chat": { "id": {{telegram_id}}, "type": "private" },
+    "date": 1700000000,
+    "text": "/memo"
+  }
+}
+
+### ──────────────────────────────────────────
+### /search — 키워드 검색
+### ──────────────────────────────────────────
+POST {{base_url}}/api/v1/webhook/telegram
+Content-Type: application/json
+
+{
+  "update_id": 100000007,
+  "message": {
+    "message_id": 7,
+    "from": { "id": {{telegram_id}}, "is_bot": false, "first_name": "TestUser" },
+    "chat": { "id": {{telegram_id}}, "type": "private" },
+    "date": 1700000000,
+    "text": "/search 파이썬"
+  }
+}
+
+### ──────────────────────────────────────────
+### /search — 검색어 없음 (에러 안내 메시지 확인)
+### ──────────────────────────────────────────
+POST {{base_url}}/api/v1/webhook/telegram
+Content-Type: application/json
+
+{
+  "update_id": 100000008,
+  "message": {
+    "message_id": 8,
+    "from": { "id": {{telegram_id}}, "is_bot": false, "first_name": "TestUser" },
+    "chat": { "id": {{telegram_id}}, "type": "private" },
+    "date": 1700000000,
+    "text": "/search"
+  }
+}
+
+### ──────────────────────────────────────────
+### 일반 텍스트 — 자동 시맨틱 검색
+### ──────────────────────────────────────────
+POST {{base_url}}/api/v1/webhook/telegram
+Content-Type: application/json
+
+{
+  "update_id": 100000009,
+  "message": {
+    "message_id": 9,
+    "from": { "id": {{telegram_id}}, "is_bot": false, "first_name": "TestUser" },
+    "chat": { "id": {{telegram_id}}, "type": "private" },
+    "date": 1700000000,
+    "text": "머신러닝 관련 저장한 것 있어?"
+  }
+}
+
+### ──────────────────────────────────────────
+### callback_query — 도움말 버튼 클릭
+### ──────────────────────────────────────────
+POST {{base_url}}/api/v1/webhook/telegram
+Content-Type: application/json
+
+{
+  "update_id": 100000010,
+  "callback_query": {
+    "id": "callback-001",
+    "from": { "id": {{telegram_id}}, "is_bot": false, "first_name": "TestUser" },
+    "data": "help"
+  }
+}
+
+### ──────────────────────────────────────────
+### REST Search API — GET /api/v1/search
+### ──────────────────────────────────────────
+GET {{base_url}}/api/v1/search?telegram_id={{telegram_id}}&q=파이썬&top_k=5
