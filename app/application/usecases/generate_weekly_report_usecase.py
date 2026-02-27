@@ -21,6 +21,7 @@ from app.domain.repositories.i_link_repository import ILinkRepository
 from app.domain.repositories.i_recommendation_repository import IRecommendationRepository
 from app.domain.repositories.i_user_repository import IUserRepository
 from app.domain.scoring import compute_interest_centroid, select_reactivation_link
+from app.prompts.weekly_briefing import build_briefing_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +93,7 @@ class GenerateWeeklyReportUseCase:
 
         # 5. LLM 브리핑 생성
         briefing = await self._openai.generate_briefing(
-            _build_briefing_prompt(best, tvd, delta, current_cats)
+            build_briefing_prompt(best, tvd, delta, current_cats)
         )
 
         # 6. Telegram 전송 (읽음 처리 버튼 포함)
@@ -106,52 +107,6 @@ class GenerateWeeklyReportUseCase:
         # 7. 추천 이력 기록 + 단일 커밋
         await self._rec_repo.record(link_id=best["link_id"], user_id=user_id)
         await self._db.commit()
-
-
-def _build_briefing_prompt(
-    best: dict,
-    tvd: float,
-    delta: dict[str, float],
-    current_cats: list[str],
-) -> str:
-    drift_summary = ""
-    if tvd > 0.1:
-        top_gains = sorted(
-            [(c, d) for c, d in delta.items() if d > 0],
-            key=lambda t: t[1],
-            reverse=True,
-        )[:2]
-        top_losses = sorted(
-            [(c, d) for c, d in delta.items() if d < 0],
-            key=lambda t: t[1],
-        )[:2]
-        drift_lines = []
-        for c, d in top_gains:
-            drift_lines.append(f"  ▲ {c} (+{d:.0%})")
-        for c, d in top_losses:
-            drift_lines.append(f"  ▼ {c} ({d:.0%})")
-        drift_summary = "관심사 변화:\n" + "\n".join(drift_lines)
-    else:
-        drift_summary = "관심사 변화: 안정적 (큰 변화 없음)"
-
-    categories_str = ", ".join(current_cats[:10]) if current_cats else "없음"
-
-    return f"""사용자의 주간 지식 리포트를 생성해주세요.
-
-[이번 주 관심 카테고리]: {categories_str}
-[{drift_summary}]
-
-[다시 볼 링크]
-제목: {best.get('title', '제목 없음')}
-요약: {best.get('summary', '')}
-카테고리: {best.get('category', '')}
-
-위 정보를 바탕으로:
-1. 이번 주 관심사 흐름을 한 문장으로 요약
-2. 다시 볼 링크가 왜 지금 유용한지 설명 (2~3문장)
-3. 마무리 응원 한 마디
-
-친근하고 간결하게 한국어로 작성해주세요. 총 5~7문장."""
 
 
 def _build_report_message(briefing: str, best: dict) -> str:

@@ -2,44 +2,14 @@ import json
 import logging
 
 from app.domain.repositories.i_link_repository import ILinkRepository
-from app.application.models.llm import LLMMessage, LLMTool
+from app.application.models.llm import LLMMessage
 from app.application.ports.telegram_port import TelegramPort
 from app.application.ports.chat_completion_port import ChatCompletionPort
 from app.infrastructure.rag.reranker import SimpleReranker
 from app.infrastructure.rag.retriever import HybridRetriever
+from app.prompts.knowledge_agent import KNOWLEDGE_AGENT_PROMPT, TOOLS
 
 logger = logging.getLogger(__name__)
-
-_TOOLS = [
-    LLMTool(
-        name="search_knowledge_base",
-        description="사용자가 저장한 링크와 메모에서 관련 내용을 검색합니다.",
-        parameters={
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "검색할 질문 또는 키워드",
-                }
-            },
-            "required": ["query"],
-        },
-    ),
-    LLMTool(
-        name="get_unread_links",
-        description="사용자가 아직 읽지 않은 저장된 링크 목록을 가져옵니다.",
-        parameters={
-            "type": "object",
-            "properties": {
-                "limit": {
-                    "type": "integer",
-                    "description": "가져올 링크 수 (기본값: 5)",
-                }
-            },
-            "required": [],
-        },
-    ),
-]
 
 
 class KnowledgeAgent:
@@ -63,21 +33,14 @@ class KnowledgeAgent:
         """Function Calling loop: intent → tool → synthesis → send."""
         try:
             messages: list[LLMMessage] = [
-                LLMMessage(
-                    role="system",
-                    content=(
-                        "당신은 사용자의 개인 지식 베이스 도우미입니다. "
-                        "사용자가 저장한 링크와 메모를 기반으로 질문에 답하세요. "
-                        "도구를 활용하여 관련 정보를 검색하고 정확하고 유용한 답변을 제공하세요."
-                    ),
-                ),
+                LLMMessage(role="system", content=KNOWLEDGE_AGENT_PROMPT),
                 LLMMessage(role="user", content=query),
             ]
 
             response = await self._llm.chat_completions(
                 messages=messages,
                 model="gpt-4o",
-                tools=_TOOLS,
+                tools=TOOLS,
                 tool_choice="auto",
             )
 

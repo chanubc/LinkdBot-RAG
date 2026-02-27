@@ -3,16 +3,7 @@ from openai import AsyncOpenAI
 from app.core.config import settings
 from app.application.ports.ai_task_port import AITaskPort
 from app.domain.entities.content_analysis import ContentAnalysis
-
-_ANALYZE_CONTENT_PROMPT = """\
-You are a content analysis assistant. Analyze the given web content.
-
-Rules:
-- title: one concise line, max 50 characters
-- summary: 3-sentence summary of key points
-- category: must be exactly one of: AI, Dev, Career, Business, Science, Other
-- keywords: exactly 5 relevant keywords
-"""
+from app.prompts.analyze_content import ANALYZE_CONTENT_PROMPT
 
 
 class OpenAIRepository(AITaskPort):
@@ -24,7 +15,7 @@ class OpenAIRepository(AITaskPort):
         response = await self._client.beta.chat.completions.parse(
             model="gpt-4.1-mini",
             messages=[
-                {"role": "system", "content": _ANALYZE_CONTENT_PROMPT},
+                {"role": "system", "content": ANALYZE_CONTENT_PROMPT},
                 {"role": "user", "content": content[:8000]},
             ],
             response_format=ContentAnalysis,
