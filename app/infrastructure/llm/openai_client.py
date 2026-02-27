@@ -36,7 +36,7 @@ class OpenAIRepository(AITaskPort):
     async def generate_briefing(self, prompt: str) -> str:
         """주간 브리핑 텍스트 생성."""
         response = await self._client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4.1-mini",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
         )

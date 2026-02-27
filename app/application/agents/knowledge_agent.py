@@ -39,7 +39,7 @@ class KnowledgeAgent:
 
             response = await self._llm.chat_completions(
                 messages=messages,
-                model="gpt-4o",
+                model="gpt-4.1",
                 tools=TOOLS,
                 tool_choice="auto",
             )
@@ -70,7 +70,7 @@ class KnowledgeAgent:
 
             final_response = await self._llm.chat_completions(
                 messages=messages,
-                model="gpt-4o",
+                model="gpt-4.1",
             )
             answer = final_response.message.content or "답변을 생성할 수 없습니다."
             await self._telegram.send_message(telegram_id, answer)

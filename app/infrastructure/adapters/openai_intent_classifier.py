@@ -23,7 +23,7 @@ class OpenAIIntentClassifier(IntentClassifierPort):
         """IntentClassifierPort 구현: OpenAI로 Intent 분류."""
         try:
             response = await self._openai.beta.chat.completions.parse(
-                model="gpt-4o-mini",
+                model="gpt-4.1-mini",
                 messages=[
                     {"role": "system", "content": INTENT_CLASSIFIER_PROMPT},
                     {"role": "user", "content": text},
