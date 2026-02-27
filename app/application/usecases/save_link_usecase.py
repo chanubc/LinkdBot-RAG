@@ -5,8 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.repositories.i_chunk_repository import IChunkRepository
 from app.domain.repositories.i_link_repository import ILinkRepository
-from app.application.ports.notion_port import NotionPort
 from app.application.ports.ai_task_port import AITaskPort
+from app.application.ports.notion_port import NotionPort
 from app.application.ports.scraper_port import ScraperPort
 from app.application.ports.telegram_port import TelegramPort
 from app.domain.repositories.i_user_repository import IUserRepository
@@ -52,10 +52,10 @@ class SaveLinkUseCase:
 
             # 2. Analyze
             analysis = await self._openai.analyze_content(content)
-            title: str = analysis.get("title") or url
-            summary: str = analysis.get("summary", "")
-            category: str = analysis.get("category", "Other")
-            keywords: list[str] = analysis.get("keywords", [])
+            title: str = analysis.title or url
+            summary: str = analysis.summary
+            category: str = analysis.category
+            keywords: list[str] = analysis.keywords
             keywords_json = json.dumps(keywords, ensure_ascii=False)
 
             # 2-1. Summary 임베딩 생성 (Drift/Reactivation 계산용)
