@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 from app.api.v1.endpoints import auth, search, webhook
 from app.api.dependencies.auth_di import get_telegram_client
+from app.infrastructure.scheduler import create_scheduler
 
 
 @asynccontextmanager
@@ -20,9 +21,15 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("⚠️ Failed to register Telegram bot commands")
 
+    scheduler = create_scheduler()
+    scheduler.start()
+    logger.info("✅ Weekly report scheduler started")
+
     yield
 
-    # Shutdown (if needed)
+    # Shutdown
+    scheduler.shutdown()
+    logger.info("🛑 Weekly report scheduler stopped")
 
 
 app = FastAPI(
