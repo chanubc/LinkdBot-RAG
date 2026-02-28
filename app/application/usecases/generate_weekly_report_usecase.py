@@ -67,7 +67,10 @@ class GenerateWeeklyReportUseCase:
         # 1. Drift 계산 (current: 최근 7일, past: 7일~30일 — 겹침 없이 분리)
         current_cats = await self._link_repo.get_categories_by_period(user_id, week_ago, now)
         past_cats = await self._link_repo.get_categories_by_period(user_id, month_ago, week_ago)
-        tvd, delta = calculate_drift(current_cats, past_cats)
+        if len(current_cats) >= 3:
+            tvd, delta = calculate_drift(current_cats, past_cats)
+        else:
+            tvd, delta = 0.0, {}
 
         # 2. Interest Centroid (최근 7일 → 전체 폴백)
         recent_embs = await self._link_repo.get_summary_embeddings_by_period(user_id, week_ago, now)
