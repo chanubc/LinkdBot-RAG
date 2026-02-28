@@ -44,14 +44,16 @@ class SaveLinkUseCase:
         """
         try:
             # 0. 즉시 피드백 (사용자에게 처리 시작 알림)
-            await self._telegram.send_message(telegram_id, "🔍 링크를 저장하는 중입니다...")
+            await self._telegram.send_message(telegram_id, "🔗 링크를 저장하는 중이에요...")
 
             # 1. Scrape
             content, content_source = await self._scraper.scrape(url)
             if memo:
                 content = f"{content}\n\n{memo}"
+            await self._telegram.send_message(telegram_id, "✅ 링크 내용 스크랩이 완료되었어요.")
 
             # 2. Analyze
+            await self._telegram.send_message(telegram_id, "🤖 AI가 내용을 분석하고 있어요...")
             analysis = await self._openai.analyze_content(content)
             title: str = analysis.title or url
             summary: str = analysis.summary
