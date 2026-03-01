@@ -12,8 +12,10 @@ class Settings(BaseSettings):
     ENCRYPTION_KEY: str  # Fernet key
     JINA_API_KEY: str | None = None
     TELEGRAM_TEST_ID: int | None = None
+    DASHBOARD_JWT_SECRET: str  # 기본값 없음 — .env 필수 설정
+    DASHBOARD_URL: str = "http://localhost:8501"
 
-    model_config = {"env_file": ".env"}
+    model_config = {"env_file": ".env", "extra": "ignore"}
 
 
 settings = Settings()

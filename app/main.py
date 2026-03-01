@@ -6,7 +6,7 @@ from app.core.logger import logger, setup_logging
 
 setup_logging()
 
-from app.api.v1.endpoints import auth, search, webhook
+from app.api.v1.endpoints import auth, dashboard, search, webhook
 from app.api.dependencies.auth_di import get_telegram_client
 from app.infrastructure.scheduler import create_scheduler
 
@@ -41,6 +41,7 @@ app = FastAPI(
 app.include_router(webhook.router, prefix="/api/v1/webhook", tags=["webhook"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(search.router, prefix="/api/v1/search", tags=["search"])
+app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
 
 
 @app.get("/health", tags=["health"])
