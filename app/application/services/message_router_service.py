@@ -47,7 +47,6 @@ class MessageRouterService:
             "/memo": self._process_memo,
             "/ask": self._process_ask,
             "/search": self._process_search,
-            "/dashboard": self._handle_dashboard,
         }
 
         # Intent handlers map (OCP: new intents don't require editing route())
@@ -248,20 +247,6 @@ class MessageRouterService:
         else:
             login_url = self._auth_service.create_login_url(telegram_id)
             await self._telegram.send_notion_connect_button(telegram_id, login_url)
-
-    async def _handle_dashboard(
-        self, telegram_id: int, payload: str = "", background_tasks: BackgroundTasks | None = None
-    ) -> None:
-        """개인 대시보드 링크 발송 (JWT stateless — StateStore 불필요)."""
-        from app.core.jwt import create_dashboard_token
-        from app.core.config import settings
-
-        token = create_dashboard_token(telegram_id)
-        url = f"{settings.DASHBOARD_URL}?token={token}"
-        await self._telegram.send_message(
-            telegram_id,
-            f"📊 개인 대시보드:\n{url}\n\n링크는 7일간 유효합니다.",
-        )
 
     async def _execute_search_and_send_results(self, telegram_id: int, query: str) -> None:
         """검색 실행 및 결과 전송 (background에서 실행).

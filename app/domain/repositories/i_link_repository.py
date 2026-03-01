@@ -64,25 +64,4 @@ class ILinkRepository(ABC):
     ) -> list[list[float]]: ...
 
     @abstractmethod
-    async def mark_as_read(self, link_id: int, user_id: int) -> bool: ...
-    # Returns True if a row was updated (ownership verified). False → 링크 없음 or 타인 소유.
-
-    # --- Phase 4: Dashboard ---
-
-    @abstractmethod
-    async def get_all_links_with_metadata(
-        self, user_id: int, limit: int = 500
-    ) -> list[dict]: ...
-    # Returns: [{id, title, url, category, keywords, is_read, created_at, summary}]
-
-    @abstractmethod
-    async def get_links_with_embeddings(
-        self, user_id: int, limit: int = 300
-    ) -> list[dict]: ...
-    # Returns: [{id, title, category, summary_embedding: list[float]}]
-    # summary_embedding IS NOT NULL condition. For PCA.
-
-    @abstractmethod
-    async def delete_link(self, link_id: int, user_id: int) -> bool: ...
-    # CASCADE → Chunk auto-deleted. commit called by endpoint.
-    # Returns True if a row was deleted (ownership verified). False → 링크 없음 or 타인 소유.
+    async def mark_as_read(self, link_id: int) -> None: ...

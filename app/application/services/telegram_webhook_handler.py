@@ -88,7 +88,7 @@ class TelegramWebhookHandler:
         elif data.startswith("mark_read:"):
             try:
                 link_id = int(data.split(":", 1)[1])
-                await self._link_repo.mark_as_read(link_id, chat_id)
+                await self._link_repo.mark_as_read(link_id)
                 await self._db.commit()
                 await self._telegram.send_message(chat_id, "✅ 읽음 처리되었습니다.")
             except Exception as exc:
