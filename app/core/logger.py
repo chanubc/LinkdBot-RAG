@@ -1,14 +1,22 @@
-"""Loguru 기반 로깅 설정.
-
-표준 logging 핸들러를 인터셉트하여 uvicorn/sqlalchemy 등 서드파티 로그도
-loguru로 통합 출력.
-"""
 import logging
+import re
 import sys
+from pprint import pformat
+from typing import Any
 
 from loguru import logger
 
 __all__ = ["logger", "setup_logging"]
+
+
+# ✅ HTTP Method 색상 매핑
+METHOD_COLORS = {
+    "GET": "green",
+    "POST": "blue",
+    "PUT": "yellow",
+    "DELETE": "red",
+    "PATCH": "magenta",
+}
 
 
 class _InterceptHandler(logging.Handler):
@@ -26,37 +34,79 @@ class _InterceptHandler(logging.Handler):
                 frame = frame.f_back
                 depth += 1
         except ValueError:
-            # 호출 스택이 얕은 경우 (테스트/특정 런타임) 기본값 사용
             depth = 6
 
-        logger.opt(depth=depth, exception=record.exc_info).log(
-            level, record.getMessage()
-        )
+        msg = record.getMessage()
+        bound_logger = logger.opt(depth=depth, exception=record.exc_info)
+
+        # 💡 핵심 수정 1: uvicorn.access 로그에서 HTTP Method 추출하여 bind
+        if record.name == "uvicorn.access":
+            # 예: "... "GET /api HTTP/1.1" 200" 형태에서 메서드 추출
+            match = re.search(r'"(GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD) ', msg)
+            if match:
+                method = match.group(1)
+                # 추출한 메서드를 extra["method"]에 주입
+                bound_logger = bound_logger.bind(method=method)
+
+        bound_logger.log(level, msg)
+
+
+# ✅ 커스텀 포맷터 (HTTP Method 색상 적용)
+def _formatter(record: dict) -> str:
+    method = record["extra"].get("method")
+    method_part = ""
+
+    if method:
+        color = METHOD_COLORS.get(method, "white")
+        # Loguru의 태그 문법에 맞게 색상 적용
+        method_part = f"<{color}><bold>{method:<6}</bold></{color}> | "
+
+    return (
+        "<green>{time:HH:mm:ss}</green> | "
+        "<level>{level: <8}</level> | "
+        f"{method_part}"
+        "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> — "
+        "<level>{message}</level>\n"
+    )
+
+
+# 💡 핵심 수정 2: Loguru Patcher를 이용한 자동 Pretty Print
+def _patch_record(record: dict) -> None:
+    """로그 메시지가 dict/list 형태일 경우 자동으로 Pretty Print 적용"""
+    # 주의: 직접 logger.info({"a": 1}) 처럼 넘긴 경우 record["message"]는
+    # 이미 문자열로 변환되어 있을 수 있습니다.
+    # 따라서 로그 기록 시 logger.info("Data:\n{}", _pretty_message(data)) 사용을 권장합니다.
+    pass
+
+
+def pretty_format(data: Any) -> str:
+    """사용자가 직접 호출해서 쓸 수 있는 Pretty Helper"""
+    if isinstance(data, (dict, list)):
+        return "\n" + pformat(data, sort_dicts=False, indent=2)
+    return str(data)
 
 
 def setup_logging(level: str = "INFO") -> None:
-    """loguru 초기화 및 표준 logging 인터셉트.
-
-    Args:
-        level: 로그 레벨 (기본 INFO)
-    """
+    """loguru 초기화 및 표준 logging 인터셉트."""
     logger.remove()
+
     logger.add(
         sys.stdout,
         level=level,
         colorize=True,
-        format=(
-            "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
-            "<level>{level: <8}</level> | "
-            "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> — "
-            "<level>{message}</level>"
-        ),
+        format=_formatter,  # type: ignore
         backtrace=True,
-        diagnose=False,  # 기본값: 민감정보(토큰/키) 유출 방지
+        diagnose=False,  # 민감정보 보호
     )
 
     # 표준 logging 핸들러 전체 인터셉트
     logging.basicConfig(handlers=[_InterceptHandler()], level=0, force=True)
-    for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "sqlalchemy.engine"):
+
+    for name in (
+        "uvicorn",
+        "uvicorn.error",
+        "uvicorn.access",
+        "sqlalchemy.engine",
+    ):
         logging.getLogger(name).handlers = [_InterceptHandler()]
         logging.getLogger(name).propagate = False

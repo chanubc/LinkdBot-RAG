@@ -173,3 +173,60 @@ Content-Type: application/json
 ### REST Search API — GET /api/v1/search
 ### ──────────────────────────────────────────
 GET {{base_url}}/api/v1/search?telegram_id={{telegram_id}}&q=파이썬&top_k=5
+
+### ══════════════════════════════════════════
+### Phase 4: Dashboard API
+### JWT 토큰 생성 방법:
+###   python -c "from app.core.jwt import create_dashboard_token; print(create_dashboard_token(YOUR_TELEGRAM_ID))"
+### 생성된 토큰을 아래 @jwt_token 변수에 붙여넣기
+### ══════════════════════════════════════════
+
+@jwt_token = {{$dotenv DASHBOARD_TEST_JWT}}
+
+### ──────────────────────────────────────────
+### /auth/me — JWT 검증 + 유저 정보 반환
+### ──────────────────────────────────────────
+GET {{base_url}}/api/v1/dashboard/auth/me
+Authorization: Bearer {{jwt_token}}
+
+### ──────────────────────────────────────────
+### /drift/me — TVD + 8주 시계열
+### ──────────────────────────────────────────
+GET {{base_url}}/api/v1/dashboard/drift/me
+Authorization: Bearer {{jwt_token}}
+
+### ──────────────────────────────────────────
+### /reactivation/me — 점수 랭킹 (관심사 자동 감지)
+### ──────────────────────────────────────────
+GET {{base_url}}/api/v1/dashboard/reactivation/me
+Authorization: Bearer {{jwt_token}}
+
+### ──────────────────────────────────────────
+### /reactivation/me?query= — 키워드 기반 재계산
+### ──────────────────────────────────────────
+GET {{base_url}}/api/v1/dashboard/reactivation/me?query=머신러닝
+Authorization: Bearer {{jwt_token}}
+
+### ──────────────────────────────────────────
+### /embeddings/me — PCA 2D 좌표
+### ──────────────────────────────────────────
+GET {{base_url}}/api/v1/dashboard/embeddings/me
+Authorization: Bearer {{jwt_token}}
+
+### ──────────────────────────────────────────
+### /links/me — 링크 목록 (전체)
+### ──────────────────────────────────────────
+GET {{base_url}}/api/v1/dashboard/links/me
+Authorization: Bearer {{jwt_token}}
+
+### ──────────────────────────────────────────
+### /links/me — 미열람 링크만, AI 카테고리 필터
+### ──────────────────────────────────────────
+GET {{base_url}}/api/v1/dashboard/links/me?is_read=false&category=AI&page=1&page_size=25
+Authorization: Bearer {{jwt_token}}
+
+### ──────────────────────────────────────────
+### /report/trigger/me — 주간 브리핑 강제 실행
+### ──────────────────────────────────────────
+POST {{base_url}}/api/v1/dashboard/report/trigger/me
+Authorization: Bearer {{jwt_token}}
