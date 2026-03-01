@@ -84,3 +84,7 @@ class ILinkRepository(ABC):
     @abstractmethod
     async def delete_link(self, link_id: int) -> None: ...
     # CASCADE → Chunk auto-deleted. commit called by endpoint.
+
+    @abstractmethod
+    async def get_link_by_id(self, link_id: int) -> dict | None: ...
+    # Returns: {id, url, user_id, is_read} or None if not found

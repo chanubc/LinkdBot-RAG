@@ -241,3 +241,20 @@ class LinkRepository(ILinkRepository):
     async def delete_link(self, link_id: int) -> None:
         """링크 삭제 (CASCADE로 Chunk 자동 삭제)."""
         await self._db.execute(delete(Link).where(Link.id == link_id))
+
+    async def get_link_by_id(self, link_id: int) -> dict | None:
+        """링크 단건 조회 (리다이렉트용)."""
+        result = await self._db.execute(
+            select(Link.id, Link.url, Link.user_id, Link.is_read).where(
+                Link.id == link_id
+            )
+        )
+        row = result.mappings().first()
+        if row is None:
+            return None
+        return {
+            "id": row["id"],
+            "url": row["url"],
+            "user_id": row["user_id"],
+            "is_read": row["is_read"],
+        }
