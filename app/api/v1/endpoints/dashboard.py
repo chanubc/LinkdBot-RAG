@@ -5,7 +5,8 @@ All endpoints use /me pattern — telegram_id extracted from JWT, never from URL
 from datetime import datetime, timedelta, timezone
 
 import numpy as np
-from fastapi import BackgroundTasks, Depends
+from fastapi import BackgroundTasks, Depends, HTTPException, Query
+from fastapi.concurrency import run_in_threadpool
 from fastapi.routing import APIRouter
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
@@ -193,11 +194,14 @@ async def get_my_embeddings(
     if len(links) < 3:
         return {"items": [], "explained_variance": None}
 
-    embeddings = np.array([l["summary_embedding"] for l in links])
-    scaler = StandardScaler()
-    pca = PCA(n_components=2)
-    coords = pca.fit_transform(scaler.fit_transform(embeddings))
-    explained_variance = float(sum(pca.explained_variance_ratio_))
+    def _compute_pca():
+        emb = np.array([l["summary_embedding"] for l in links])
+        scaler = StandardScaler()
+        pca = PCA(n_components=2)
+        c = pca.fit_transform(scaler.fit_transform(emb))
+        return c, float(sum(pca.explained_variance_ratio_))
+
+    coords, explained_variance = await run_in_threadpool(_compute_pca)
 
     items = [
         {
@@ -223,8 +227,8 @@ async def get_my_links(
     link_repo: ILinkRepository = Depends(get_link_repository),
     is_read: bool | None = None,
     category: str | None = None,
-    page: int = 1,
-    page_size: int = 50,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=100),
 ):
     links = await link_repo.get_all_links_with_metadata(telegram_id, limit=500)
 
@@ -251,8 +255,10 @@ async def mark_link_read(
     db: AsyncSession = Depends(get_db),
     link_repo: ILinkRepository = Depends(get_link_repository),
 ):
-    await link_repo.mark_as_read(link_id)
+    updated = await link_repo.mark_as_read(link_id, telegram_id)
     await db.commit()
+    if not updated:
+        raise HTTPException(status_code=404, detail="링크를 찾을 수 없습니다.")
     return {"status": "ok"}
 
 
@@ -263,8 +269,10 @@ async def delete_link(
     db: AsyncSession = Depends(get_db),
     link_repo: ILinkRepository = Depends(get_link_repository),
 ):
-    await link_repo.delete_link(link_id)
+    deleted = await link_repo.delete_link(link_id, telegram_id)
     await db.commit()
+    if not deleted:
+        raise HTTPException(status_code=404, detail="링크를 찾을 수 없습니다.")
     return {"status": "ok"}
 
 

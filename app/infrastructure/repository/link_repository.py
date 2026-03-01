@@ -172,11 +172,14 @@ class LinkRepository(ILinkRepository):
         )
         return [list(emb) for emb in result.scalars().all()]
 
-    async def mark_as_read(self, link_id: int) -> None:
-        """링크 읽음 처리."""
-        await self._db.execute(
-            update(Link).where(Link.id == link_id).values(is_read=True)
+    async def mark_as_read(self, link_id: int, user_id: int) -> bool:
+        """링크 읽음 처리 (소유권 검증 포함). True = 성공, False = 링크 없음/타인 소유."""
+        result = await self._db.execute(
+            update(Link)
+            .where(Link.id == link_id, Link.user_id == user_id)
+            .values(is_read=True)
         )
+        return (result.rowcount or 0) > 0
 
     # --- Phase 4: Dashboard ---
 
@@ -238,6 +241,9 @@ class LinkRepository(ILinkRepository):
             for r in rows
         ]
 
-    async def delete_link(self, link_id: int) -> None:
-        """링크 삭제 (CASCADE로 Chunk 자동 삭제)."""
-        await self._db.execute(delete(Link).where(Link.id == link_id))
+    async def delete_link(self, link_id: int, user_id: int) -> bool:
+        """링크 삭제 (소유권 검증 포함, CASCADE로 Chunk 자동 삭제). True = 성공, False = 링크 없음/타인 소유."""
+        result = await self._db.execute(
+            delete(Link).where(Link.id == link_id, Link.user_id == user_id)
+        )
+        return (result.rowcount or 0) > 0
