@@ -9,7 +9,7 @@ from fastapi import BackgroundTasks, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.routing import APIRouter
 
-from app.api.dependencies.dashboard_auth import get_dashboard_telegram_id
+from app.api.dependencies.dashboard_auth import get_dashboard_telegram_id_from_query
 from app.api.dependencies.link_di import get_link_repository
 from app.domain.repositories.i_link_repository import ILinkRepository
 
@@ -20,7 +20,7 @@ router = APIRouter()
 async def redirect_and_mark_read(
     link_id: int,
     background_tasks: BackgroundTasks,
-    telegram_id: int = Depends(get_dashboard_telegram_id),
+    telegram_id: int = Depends(get_dashboard_telegram_id_from_query),
     link_repo: ILinkRepository = Depends(get_link_repository),
 ) -> RedirectResponse:
     """링크 클릭 시 is_read 자동 처리 후 원본 URL로 리다이렉트.
