@@ -1,5 +1,3 @@
-import logging
-
 from openai import AsyncOpenAI
 
 from app.application.ports.intent_router_port import IntentRouterPort, RouterOutput
@@ -8,7 +6,7 @@ from app.core.llm_models import LLM_ROUTER
 from app.domain.entities.intent import Intent
 from app.core.prompts.intent_classifier import INTENT_CLASSIFIER_PROMPT
 
-logger = logging.getLogger(__name__)
+from app.core.logger import logger
 
 
 class OpenAIIntentClassifier(IntentRouterPort):
@@ -31,7 +29,7 @@ class OpenAIIntentClassifier(IntentRouterPort):
             result = response.choices[0].message.parsed
             if result is None:
                 return RouterOutput(intent=Intent.UNKNOWN)
-            logger.debug("Classified: '%s' → intent=%s, query=%s", text, result.intent, result.query)
+            logger.debug(f"Classified: '{text}' → intent={result.intent}, query={result.query}")
             return result
         except Exception:
             logger.exception("Intent classification failed, fallback to ASK")

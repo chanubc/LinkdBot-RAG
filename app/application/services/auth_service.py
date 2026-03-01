@@ -1,5 +1,3 @@
-import logging
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -8,7 +6,7 @@ from app.application.ports.state_store_port import StateStorePort
 from app.application.ports.telegram_port import TelegramPort
 from app.domain.repositories.i_user_repository import IUserRepository
 
-logger = logging.getLogger(__name__)
+from app.core.logger import logger
 
 
 class AuthService:
@@ -49,7 +47,7 @@ class AuthService:
             try:
                 database_id = await self._notion.create_database(access_token, page_id)
             except Exception:
-                logger.exception("Notion DB 생성 실패 (telegram_id=%s)", telegram_id)
+                logger.exception(f"Notion DB 생성 실패 (telegram_id={telegram_id})")
 
         # 3. 유저 크리덴셜 DB 저장
         await self._user_repo.upsert_notion_credentials(

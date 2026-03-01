@@ -1,5 +1,4 @@
 import json
-import logging
 
 from app.domain.repositories.i_link_repository import ILinkRepository
 from app.application.models.llm import LLMMessage
@@ -10,7 +9,7 @@ from app.infrastructure.rag.retriever import HybridRetriever
 from app.core.llm_models import LLM_AGENT
 from app.core.prompts.knowledge_agent import KNOWLEDGE_AGENT_PROMPT, TOOLS
 
-logger = logging.getLogger(__name__)
+from app.core.logger import logger
 
 
 class KnowledgeAgent:
@@ -77,7 +76,7 @@ class KnowledgeAgent:
             await self._telegram.send_message(telegram_id, answer)
 
         except Exception as exc:
-            logger.exception("KnowledgeAgent.handle error (telegram_id=%s)", telegram_id)
+            logger.exception(f"KnowledgeAgent.handle error (telegram_id={telegram_id})")
             await self._telegram.send_message(
                 telegram_id, f"❌ 처리 실패: {str(exc)[:200]}"
             )

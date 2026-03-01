@@ -1,9 +1,5 @@
-import logging
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
-
-logger = logging.getLogger(__name__)
 
 from app.api.dependencies import get_auth_service
 from app.application.services.auth_service import AuthService

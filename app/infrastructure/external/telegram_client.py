@@ -1,12 +1,11 @@
 import html
-import logging
 
 import httpx
 
 from app.core.config import settings
 from app.application.ports.telegram_port import TelegramPort
 
-logger = logging.getLogger(__name__)
+from app.core.logger import logger
 
 
 class TelegramRepository(TelegramPort):
@@ -22,10 +21,7 @@ class TelegramRepository(TelegramPort):
             )
             if not resp.is_success:
                 logger.error(
-                    "send_message failed %s: %s | text=%r",
-                    resp.status_code,
-                    resp.text,
-                    text[:200],
+                    f"send_message failed {resp.status_code}: {resp.text} | text={text[:200]!r}"
                 )
 
     async def send_notion_connect_button(self, chat_id: int, login_url: str) -> None:
@@ -64,10 +60,7 @@ class TelegramRepository(TelegramPort):
             resp = await client.post(f"{self._base}/sendMessage", json=payload)
             if not resp.is_success:
                 logger.error(
-                    "send_link_saved_message failed %s: %s | text=%r",
-                    resp.status_code,
-                    resp.text,
-                    text[:200],
+                    f"send_link_saved_message failed {resp.status_code}: {resp.text} | text={text[:200]!r}"
                 )
 
     async def answer_callback_query(self, callback_query_id: str) -> None:
@@ -191,5 +184,5 @@ class TelegramRepository(TelegramPort):
                 resp.raise_for_status()
                 return True
         except Exception as e:
-            logger.error("Failed to register Telegram commands: %s", e)
+            logger.error(f"Failed to register Telegram commands: {e}")
             return False

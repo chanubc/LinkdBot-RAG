@@ -10,7 +10,6 @@ Flow:
 7. 추천 이력 기록 + DB 커밋
 """
 import html
-import logging
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,7 +22,7 @@ from app.domain.repositories.i_recommendation_repository import IRecommendationR
 from app.domain.repositories.i_user_repository import IUserRepository
 from app.domain.scoring import compute_interest_centroid, select_reactivation_link
 
-logger = logging.getLogger(__name__)
+from app.core.logger import logger
 
 
 class GenerateWeeklyReportUseCase:
@@ -51,11 +50,8 @@ class GenerateWeeklyReportUseCase:
                 await self.execute(user.telegram_id)
             except Exception as exc:
                 await self._db.rollback()
-                logger.error(
-                    "Weekly report failed for user %s: %s",
-                    user.telegram_id,
-                    exc,
-                    exc_info=True,
+                logger.exception(
+                    f"Weekly report failed for user {user.telegram_id}: {exc}"
                 )
 
     async def execute(self, user_id: int) -> None:
@@ -79,7 +75,7 @@ class GenerateWeeklyReportUseCase:
         centroid = compute_interest_centroid(recent_embs)
 
         if centroid is None:
-            logger.info("User %s has no embeddings, skipping weekly report", user_id)
+            logger.info(f"User {user_id} has no embeddings, skipping weekly report")
             return
 
         # 3. 최근 14일 추천 이력 제외
@@ -92,7 +88,7 @@ class GenerateWeeklyReportUseCase:
         best = select_reactivation_link(candidates, centroid)
 
         if best is None:
-            logger.info("User %s has no reactivation candidates, skipping", user_id)
+            logger.info(f"User {user_id} has no reactivation candidates, skipping")
             return
 
         # 5. LLM 브리핑 생성

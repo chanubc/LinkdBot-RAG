@@ -1,10 +1,10 @@
-import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from app.core.logger import logger, setup_logging
+
+setup_logging()
 
 from app.api.v1.endpoints import auth, search, webhook
 from app.api.dependencies.auth_di import get_telegram_client

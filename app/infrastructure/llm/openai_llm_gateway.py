@@ -1,12 +1,8 @@
-import logging
-
 from openai import AsyncOpenAI
 
 from app.core.config import settings
 from app.application.models.llm import LLMChatCompletion, LLMMessage, LLMTool
 from app.application.ports.chat_completion_port import ChatCompletionPort
-
-logger = logging.getLogger(__name__)
 
 
 class OpenAILLMGateway(ChatCompletionPort):

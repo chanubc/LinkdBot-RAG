@@ -1,5 +1,4 @@
 import json
-import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,7 +10,7 @@ from app.application.ports.telegram_port import TelegramPort
 from app.domain.repositories.i_user_repository import IUserRepository
 from app.utils.text import split_chunks
 
-logger = logging.getLogger(__name__)
+from app.core.logger import logger
 
 
 class SaveMemoUseCase:
@@ -42,7 +41,7 @@ class SaveMemoUseCase:
             # 0. 즉시 피드백 (사용자에게 처리 시작 알림)
             await self._telegram.send_message(telegram_id, "📝 메모를 저장하는 중입니다...")
 
-            logger.info("[메모 처리 시작] 유저: %s, 내용: %s", telegram_id, memo)
+            logger.info(f"[메모 처리 시작] 유저: {telegram_id}, 내용: {memo}")
             await self._user_repo.ensure_exists(telegram_id)
             link = await self._link_repo.save_memo(
                 user_id=telegram_id,

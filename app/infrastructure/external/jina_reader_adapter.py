@@ -4,14 +4,12 @@ Jina Reader API: https://r.jina.ai/{url}
 Bearer 토큰 없이도 기본 동작하나, API 키 있으면 Rate Limit 완화.
 실패 시 OG 메타태그 기반 ScraperRepository로 폴백.
 """
-import logging
-
 import httpx
 
 from app.application.ports.scraper_port import ScraperPort
 from app.infrastructure.external.scraper_client import ScraperRepository
 
-logger = logging.getLogger(__name__)
+from app.core.logger import logger
 
 JINA_BASE = "https://r.jina.ai/"
 
@@ -45,5 +43,5 @@ class JinaReaderAdapter(ScraperPort):
                     raise ValueError("Jina Reader returned empty content")
                 return content, "jina"
         except Exception as exc:
-            logger.warning("Jina Reader failed for %s (%s), falling back to OG scraper", url, exc)
+            logger.warning(f"Jina Reader failed for {url} ({exc}), falling back to OG scraper")
             return await self._fallback.scrape(url)

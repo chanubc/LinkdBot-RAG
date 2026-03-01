@@ -1,11 +1,8 @@
-import logging
-
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
 
 from app.api.dependencies.webhook_di import get_webhook_handler
 from app.application.services.telegram_webhook_handler import TelegramWebhookHandler
 
-logger = logging.getLogger(__name__)
 router = APIRouter()
 
 

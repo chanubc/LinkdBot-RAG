@@ -1,5 +1,3 @@
-import logging
-
 from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,7 +8,7 @@ from app.domain.repositories.i_link_repository import ILinkRepository
 from app.domain.repositories.i_user_repository import IUserRepository
 from app.utils.text import extract_urls
 
-logger = logging.getLogger(__name__)
+from app.core.logger import logger
 
 
 class TelegramWebhookHandler:
@@ -54,9 +52,9 @@ class TelegramWebhookHandler:
         telegram_id = from_user.get("id") or message.get("chat", {}).get("id")
         first_name = from_user.get("first_name")
         if telegram_id is None:
-            logger.warning("Cannot determine telegram_id from message: %s", message)
+            logger.warning(f"Cannot determine telegram_id from message: {message}")
             return
-        logger.info("Received message from %s: %s", telegram_id, text)
+        logger.info(f"Received message from {telegram_id}: {text}")
 
         # Ensure user exists and update first_name if available
         await self._user_repo.ensure_exists(telegram_id, first_name)
@@ -65,7 +63,7 @@ class TelegramWebhookHandler:
         urls, memo = extract_urls(text)
         if urls:
             for url in urls:
-                logger.info("Processing URL from %s: %s", telegram_id, url)
+                logger.info(f"Processing URL from {telegram_id}: {url}")
                 # Background task로 SaveLinkUseCase 실행
                 # SaveLinkUseCase 내부에서 "저장 중", "완료/실패" 메시지 관리
                 # 웹훅은 즉시 응답 (< 100ms)
@@ -94,4 +92,4 @@ class TelegramWebhookHandler:
                 await self._db.commit()
                 await self._telegram.send_message(chat_id, "✅ 읽음 처리되었습니다.")
             except Exception as exc:
-                logger.warning("mark_read callback failed: %s", exc)
+                logger.warning(f"mark_read callback failed: {exc}")

@@ -1,6 +1,5 @@
 import html
 import json
-import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,8 +11,6 @@ from app.application.ports.scraper_port import ScraperPort
 from app.application.ports.telegram_port import TelegramPort
 from app.domain.repositories.i_user_repository import IUserRepository
 from app.utils.text import split_chunks, split_markdown
-
-logger = logging.getLogger(__name__)
 
 
 class SaveLinkUseCase:

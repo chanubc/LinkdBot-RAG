@@ -3,12 +3,10 @@
 매주 월요일 09:00 KST (= 00:00 UTC) 실행.
 FastAPI lifespan에서 start/stop.
 """
-import logging
-
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-logger = logging.getLogger(__name__)
+from app.core.logger import logger
 
 
 def create_scheduler() -> AsyncIOScheduler:
@@ -35,4 +33,4 @@ async def _run_weekly_report() -> None:
             await usecase.execute_for_all_users()
             logger.info("Weekly report job completed successfully")
         except Exception as exc:
-            logger.error("Weekly report job failed: %s", exc, exc_info=True)
+            logger.exception(f"Weekly report job failed: {exc}")

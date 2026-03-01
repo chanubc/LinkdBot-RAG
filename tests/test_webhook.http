@@ -48,7 +48,7 @@ Content-Type: application/json
     "from": { "id": {{telegram_id}}, "is_bot": false, "first_name": "TestUser" },
     "chat": { "id": {{telegram_id}}, "type": "private" },
     "date": 1700000000,
-    "text": "https://github.com/tiangolo/fastapi"
+    "text": "https://news.hada.io/weekly/202607"
   }
 }
 
