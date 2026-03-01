@@ -4,7 +4,6 @@ import plotly.express as px
 import streamlit as st
 
 from dashboard.api_client import (
-    DashboardAPIClient,
     cached_get_drift,
     cached_get_embeddings,
     cached_get_stats,
@@ -12,7 +11,7 @@ from dashboard.api_client import (
 from dashboard.logger import logger
 
 
-def render(client: DashboardAPIClient, advanced: bool = False) -> None:
+def render(advanced: bool = False) -> None:
     jwt_token: str = st.session_state["jwt_token"]
     with st.spinner("통계 로딩 중..."):
         try:
@@ -32,7 +31,7 @@ def render(client: DashboardAPIClient, advanced: bool = False) -> None:
             markers=True, labels={"month": "월", "count": "저장 수"},
         )
         fig.update_layout(height=280)
-        st.plotly_chart(fig, width='stretch')
+        st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("아직 데이터가 부족합니다.")
 
@@ -49,7 +48,7 @@ def render(client: DashboardAPIClient, advanced: bool = False) -> None:
             color="category",
         )
         fig2.update_layout(height=280, showlegend=False)
-        st.plotly_chart(fig2, width='stretch')
+        st.plotly_chart(fig2, use_container_width=True)
     else:
         st.info("아직 데이터가 부족합니다.")
 
@@ -66,7 +65,7 @@ def render(client: DashboardAPIClient, advanced: bool = False) -> None:
             labels={"keyword": "", "count": "빈도"},
         )
         fig3.update_layout(height=400, yaxis={"categoryorder": "total ascending"})
-        st.plotly_chart(fig3, width='stretch')
+        st.plotly_chart(fig3, use_container_width=True)
     else:
         st.info("키워드 데이터가 없습니다.")
 
@@ -124,14 +123,14 @@ def render(client: DashboardAPIClient, advanced: bool = False) -> None:
                 polar=dict(radialaxis=dict(visible=True, range=[0, 1])),
                 height=350,
             )
-            st.plotly_chart(fig_radar, width='stretch')
+            st.plotly_chart(fig_radar, use_container_width=True)
 
             if delta:
                 df_delta = pd.DataFrame(
                     [{"카테고리": k, "변화량": round(v, 3)} for k, v in
                      sorted(delta.items(), key=lambda x: x[1], reverse=True)]
                 )
-                st.dataframe(df_delta, width='stretch', hide_index=True)
+                st.dataframe(df_delta, use_container_width=True, hide_index=True)
 
         # PCA Scatter
         pca_items = embeddings.get("items", [])
@@ -146,6 +145,6 @@ def render(client: DashboardAPIClient, advanced: bool = False) -> None:
             )
             fig_pca.update_traces(marker=dict(size=7, opacity=0.75))
             fig_pca.update_layout(height=450)
-            st.plotly_chart(fig_pca, width='stretch')
+            st.plotly_chart(fig_pca, use_container_width=True)
         else:
             st.info("임베딩 데이터가 3개 이상이어야 PCA 시각화가 가능합니다.")

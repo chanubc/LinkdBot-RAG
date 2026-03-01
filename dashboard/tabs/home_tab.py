@@ -89,7 +89,7 @@ def render(client: DashboardAPIClient, advanced: bool = False) -> None:
                     [{"카테고리": k, "변화량": round(v, 3)} for k, v in
                      sorted(delta.items(), key=lambda x: x[1], reverse=True)]
                 )
-                st.dataframe(df, width='stretch', hide_index=True)
+                st.dataframe(df, use_container_width=True, hide_index=True)
 
 
 def _render_recommendation_card(
@@ -122,9 +122,9 @@ def _render_recommendation_card(
         with col2:
             url = link.get("url")
             if url:
-                st.link_button("🔗", url, width='stretch')
+                st.link_button("🔗", url, use_container_width=True)
             if st.button("✅", key=f"home_read_{link['id']}", help="읽음 처리",
-                         width='stretch'):
+                         use_container_width=True):
                 try:
                     client.mark_link_read(link["id"])
                     st.session_state.pop("home_data", None)

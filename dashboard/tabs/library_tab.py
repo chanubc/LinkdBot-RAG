@@ -63,7 +63,7 @@ def render(client: DashboardAPIClient) -> None:
         st.info(f"**{len(selected)}개 선택됨**")
         act_col1, act_col2, act_col3 = st.columns(3)
         with act_col1:
-            if st.button("✅ 읽음 처리", width='stretch'):
+            if st.button("✅ 읽음 처리", use_container_width=True):
                 errors = []
                 for lid in list(selected):
                     try:
@@ -77,11 +77,11 @@ def render(client: DashboardAPIClient) -> None:
                     st.success(f"{len(selected)}개 읽음 처리 완료")
                 st.rerun()
         with act_col2:
-            if st.button("🗑️ 삭제", width='stretch', type="secondary"):
+            if st.button("🗑️ 삭제", use_container_width=True, type="secondary"):
                 st.session_state["lib_confirm_delete"] = True
                 st.rerun()
         with act_col3:
-            if st.button("선택 해제", width='stretch'):
+            if st.button("선택 해제", use_container_width=True):
                 st.session_state["lib_selected"] = set()
                 st.rerun()
 
@@ -90,7 +90,7 @@ def render(client: DashboardAPIClient) -> None:
         st.warning(f"정말로 {len(selected)}개를 삭제하시겠습니까?")
         c1, c2 = st.columns(2)
         with c1:
-            if st.button("확인", type="primary", width='stretch'):
+            if st.button("확인", type="primary", use_container_width=True):
                 errors = []
                 for lid in list(selected):
                     try:
@@ -105,7 +105,7 @@ def render(client: DashboardAPIClient) -> None:
                     st.success("삭제 완료")
                 st.rerun()
         with c2:
-            if st.button("취소", width='stretch'):
+            if st.button("취소", use_container_width=True):
                 st.session_state["lib_confirm_delete"] = False
                 st.rerun()
 
@@ -131,7 +131,7 @@ def render(client: DashboardAPIClient) -> None:
     st.divider()
     p1, p2, p3 = st.columns([1, 2, 1])
     with p1:
-        if st.button("← 이전", disabled=(page <= 1), width='stretch'):
+        if st.button("← 이전", disabled=(page <= 1), use_container_width=True):
             st.session_state["lib_page"] = max(1, page - 1)
             st.rerun()
     with p2:
@@ -140,7 +140,7 @@ def render(client: DashboardAPIClient) -> None:
             unsafe_allow_html=True,
         )
     with p3:
-        if st.button("다음 →", disabled=(page >= total_pages), width='stretch'):
+        if st.button("다음 →", disabled=(page >= total_pages), use_container_width=True):
             st.session_state["lib_page"] = min(total_pages, page + 1)
             st.rerun()
 

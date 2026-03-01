@@ -5,6 +5,7 @@
 - 사이드바: Advanced View 토글만
 - 탭: 🏠 홈 | 🔍 탐색 | 📈 트렌드 | 🗂 보관함 (단축 이름)
 """
+
 import os
 import sys
 
@@ -25,7 +26,7 @@ st.set_page_config(
 from streamlit_cookies_controller import CookieController
 
 from dashboard.api_client import DashboardAPIClient
-from dashboard.tabs import home_tab, discover_tab, trends_tab, library_tab
+from dashboard.tabs import discover_tab, home_tab, library_tab, trends_tab
 
 COOKIE_KEY = "linkdbot_dashboard_jwt"
 controller = CookieController()
@@ -47,6 +48,7 @@ if "telegram_id" not in st.session_state:
         if result:
             # Sliding window: 방문할 때마다 토큰 갱신 → 7일 이내 접속 시 영구 로그인 유지
             from app.core.jwt import create_dashboard_token
+
             new_token = create_dashboard_token(result["telegram_id"])
             controller.set(COOKIE_KEY, new_token, max_age=7 * 24 * 3600)
             st.session_state.update(
@@ -61,10 +63,14 @@ if "telegram_id" not in st.session_state:
                 st.rerun()
         else:
             controller.remove(COOKIE_KEY)
-            st.error("세션이 만료되었습니다. 텔레그램 봇에서 /dashboard를 다시 입력해주세요.")
+            st.error(
+                "세션이 만료되었습니다. 텔레그램 봇에서 /dashboard를 다시 입력해주세요."
+            )
             st.stop()
     else:
-        st.info("텔레그램 봇에서 `/dashboard` 명령어를 입력하면 개인 대시보드 링크를 받을 수 있습니다.")
+        st.info(
+            "텔레그램 봇에서 `/dashboard` 명령어를 입력하면 개인 대시보드 링크를 받을 수 있습니다."
+        )
         st.stop()
 
 # ---------------------------------------------------------------------------
@@ -77,8 +83,9 @@ first_name: str = st.session_state.get("first_name") or ""
 with st.sidebar:
     st.markdown(f"### 👋 {first_name}" if first_name else "### 📊 LinkdBot")
     st.divider()
-    advanced = st.toggle("🔬 Advanced View", value=False,
-                         help="TVD, 점수 공식 등 기술 지표를 표시합니다")
+    advanced = st.toggle(
+        "🔬 Advanced View", value=False, help="TVD, 점수 공식 등 기술 지표를 표시합니다"
+    )
     st.divider()
     st.caption("LinkdBot Knowledge Dashboard")
 
@@ -93,7 +100,7 @@ with tab2:
     discover_tab.render(client)
 
 with tab3:
-    trends_tab.render(client, advanced)
+    trends_tab.render(advanced)
 
 with tab4:
     library_tab.render(client)

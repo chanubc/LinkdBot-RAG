@@ -17,7 +17,7 @@ def render(client: DashboardAPIClient) -> None:
         query = st.text_input("검색어", placeholder="예: 머신러닝, LLM 최적화, 커리어 전환",
                               label_visibility="collapsed")
     with col2:
-        search_btn = st.button("검색", type="primary", width='stretch')
+        search_btn = st.button("검색", type="primary", use_container_width=True)
 
     if search_btn and query.strip():
         with st.spinner("검색 중..."):
@@ -95,7 +95,7 @@ def _render_result_card(r: dict) -> None:
         with col2:
             url = r.get("url")
             if url:
-                st.link_button("🔗 열기", url, width='stretch')
+                st.link_button("🔗 열기", url, use_container_width=True)
 
 
 def _render_forgotten_card(item: dict) -> None:
@@ -111,4 +111,4 @@ def _render_forgotten_card(item: dict) -> None:
         with col2:
             url = item.get("url")
             if url:
-                st.link_button("🔗 열기", url, width='stretch')
+                st.link_button("🔗 열기", url, use_container_width=True)
