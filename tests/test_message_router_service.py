@@ -134,6 +134,43 @@ async def test_intent_ask_dispatch(router_service, mock_dependencies):
 
 
 @pytest.mark.asyncio
+async def test_likely_question_bypasses_classifier(router_service, mock_dependencies):
+    """질문형 텍스트는 classifier를 우회하고 agent로 바로 전달된다."""
+    await router_service.route(123, "RAG가 뭐야?", None)
+
+    mock_dependencies["intent_classifier"].classify.assert_not_called()
+    mock_dependencies["agent"].run.assert_called_once_with(123, "RAG가 뭐야?")
+
+
+@pytest.mark.asyncio
+async def test_help_like_question_still_uses_classifier(router_service, mock_dependencies):
+    """도움말/시작 성격 문장은 질문형이어도 classifier 우선."""
+    mock_dependencies["intent_classifier"].classify.return_value = ClassifierOutput(
+        intent=Intent.HELP,
+        query=None,
+    )
+
+    await router_service.route(123, "how do I use this bot?", None)
+
+    mock_dependencies["intent_classifier"].classify.assert_called_once()
+    mock_dependencies["agent"].run.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_start_like_question_still_uses_classifier(router_service, mock_dependencies):
+    """시작/연동 성격 문장도 classifier 경유."""
+    mock_dependencies["intent_classifier"].classify.return_value = ClassifierOutput(
+        intent=Intent.START,
+        query=None,
+    )
+
+    await router_service.route(123, "Can you guide me to connect notion?", None)
+
+    mock_dependencies["intent_classifier"].classify.assert_called_once()
+    mock_dependencies["agent"].run.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_error_handling_on_classification_failure(router_service, mock_dependencies):
     """Test error handling when intent classification fails."""
     mock_dependencies["intent_classifier"].classify.side_effect = Exception("API Error")
