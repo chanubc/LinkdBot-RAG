@@ -268,8 +268,8 @@ async def test_dashboard_command_sends_url(router_service, mock_dependencies):
         await router_service.route(123, "/dashboard", None)
 
         mock_create_token.assert_called_once_with(123)
-        mock_dependencies["telegram"].send_message.assert_called_once()
-        call_args = mock_dependencies["telegram"].send_message.call_args[0]
+        mock_dependencies["telegram"].send_dashboard_button.assert_called_once()
+        call_args = mock_dependencies["telegram"].send_dashboard_button.call_args[0]
         assert call_args[0] == 123
         assert "test.jwt.token" in call_args[1]
 

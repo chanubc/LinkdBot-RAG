@@ -267,10 +267,7 @@ class MessageRouterService:
 
         token = create_dashboard_token(telegram_id)
         url = f"{settings.DASHBOARD_URL}?token={token}"
-        await self._telegram.send_message(
-            telegram_id,
-            f"📊 개인 대시보드:\n{url}\n\n링크는 7일간 유효합니다.",
-        )
+        await self._telegram.send_dashboard_button(telegram_id, url)
 
     async def _execute_search_and_send_results(self, telegram_id: int, query: str) -> None:
         """검색 실행 및 결과 전송 (background에서 실행).
