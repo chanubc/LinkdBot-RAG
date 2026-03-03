@@ -12,34 +12,31 @@ class DashboardAPIClient:
     def __init__(self, jwt_token: str, base_url: str = BASE_URL):
         self._base = base_url.rstrip("/")
         self._headers = {"Authorization": f"Bearer {jwt_token}"}
+        self._client = httpx.Client(timeout=_TIMEOUT)
 
     def _get(self, path: str, **params) -> dict:
-        with httpx.Client(timeout=_TIMEOUT) as client:
-            r = client.get(
-                f"{self._base}{path}",
-                headers=self._headers,
-                params={k: v for k, v in params.items() if v is not None},
-            )
-            r.raise_for_status()
-            return r.json()
+        r = self._client.get(
+            f"{self._base}{path}",
+            headers=self._headers,
+            params={k: v for k, v in params.items() if v is not None},
+        )
+        r.raise_for_status()
+        return r.json()
 
     def _patch(self, path: str) -> dict:
-        with httpx.Client(timeout=_TIMEOUT) as client:
-            r = client.patch(f"{self._base}{path}", headers=self._headers)
-            r.raise_for_status()
-            return r.json()
+        r = self._client.patch(f"{self._base}{path}", headers=self._headers)
+        r.raise_for_status()
+        return r.json()
 
     def _delete(self, path: str) -> dict:
-        with httpx.Client(timeout=_TIMEOUT) as client:
-            r = client.delete(f"{self._base}{path}", headers=self._headers)
-            r.raise_for_status()
-            return r.json()
+        r = self._client.delete(f"{self._base}{path}", headers=self._headers)
+        r.raise_for_status()
+        return r.json()
 
     def _post(self, path: str) -> dict:
-        with httpx.Client(timeout=_TIMEOUT) as client:
-            r = client.post(f"{self._base}{path}", headers=self._headers)
-            r.raise_for_status()
-            return r.json()
+        r = self._client.post(f"{self._base}{path}", headers=self._headers)
+        r.raise_for_status()
+        return r.json()
 
     def verify_token(self) -> dict | None:
         """GET /api/v1/dashboard/auth/me — returns user info or None on error."""
@@ -88,27 +85,41 @@ class DashboardAPIClient:
     def search(self, q: str, top_k: int = 10) -> dict:
         return self._get("/api/v1/dashboard/search/me", q=q, top_k=top_k)
 
+    def close(self) -> None:
+        self._client.close()
+
+    def __enter__(self) -> "DashboardAPIClient":
+        return self
+
+    def __exit__(self, *args) -> None:
+        self.close()
+
 
 # ---------------------------------------------------------------------------
 # Cached fetch helpers (TTL=30s)
 # 같은 JWT로 30초 이내 재호출은 캐시 반환 → 탭 간 중복 API 호출 방지
+# context manager로 감싸 httpx.Client 소켓 누수 방지
 # ---------------------------------------------------------------------------
 
 @st.cache_data(ttl=30, show_spinner=False)
 def cached_get_stats(jwt_token: str, base_url: str = BASE_URL) -> dict:
-    return DashboardAPIClient(jwt_token=jwt_token, base_url=base_url).get_stats()
+    with DashboardAPIClient(jwt_token=jwt_token, base_url=base_url) as c:
+        return c.get_stats()
 
 
 @st.cache_data(ttl=30, show_spinner=False)
 def cached_get_drift(jwt_token: str, base_url: str = BASE_URL) -> dict:
-    return DashboardAPIClient(jwt_token=jwt_token, base_url=base_url).get_drift()
+    with DashboardAPIClient(jwt_token=jwt_token, base_url=base_url) as c:
+        return c.get_drift()
 
 
 @st.cache_data(ttl=30, show_spinner=False)
 def cached_get_reactivation(jwt_token: str, base_url: str = BASE_URL) -> dict:
-    return DashboardAPIClient(jwt_token=jwt_token, base_url=base_url).get_reactivation()
+    with DashboardAPIClient(jwt_token=jwt_token, base_url=base_url) as c:
+        return c.get_reactivation()
 
 
 @st.cache_data(ttl=30, show_spinner=False)
 def cached_get_embeddings(jwt_token: str, base_url: str = BASE_URL) -> dict:
-    return DashboardAPIClient(jwt_token=jwt_token, base_url=base_url).get_embeddings()
+    with DashboardAPIClient(jwt_token=jwt_token, base_url=base_url) as c:
+        return c.get_embeddings()

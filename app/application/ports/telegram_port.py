@@ -62,3 +62,8 @@ class TelegramPort(ABC):
     ) -> None:
         """주간 리포트 전송. link_id 있으면 [읽음 처리] 인라인 버튼 포함."""
         pass
+
+    @abstractmethod
+    async def send_dashboard_button(self, chat_id: int, dashboard_url: str) -> None:
+        """대시보드 접속 인라인 버튼 전송."""
+        pass

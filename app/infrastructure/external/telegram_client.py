@@ -97,7 +97,10 @@ class TelegramRepository(TelegramPort):
                 "<b>5️⃣ AI 질문</b>\n"
                 "저장된 지식 기반으로 AI가 답변해드려요\n"
                 "<code>/ask [질문]</code>\n"
-                "예시: <code>/ask 머신러닝이란?</code>"
+                "예시: <code>/ask 머신러닝이란?</code>\n\n"
+                "<b>6️⃣ 대시보드</b>\n"
+                "저장한 링크·트렌드·추천을 웹에서 확인해요\n"
+                "<code>/dashboard</code>"
             ),
         )
 
@@ -136,6 +139,31 @@ class TelegramRepository(TelegramPort):
 
         await self.send_message(chat_id, "\n".join(lines))
 
+    async def send_dashboard_button(self, chat_id: int, dashboard_url: str) -> None:
+        """대시보드 접속 인라인 버튼 전송."""
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{self._base}/sendMessage",
+                json={
+                    "chat_id": chat_id,
+                    "text": (
+                        "📊 <b>나의 지식 대시보드</b>\n\n"
+                        "저장한 링크, 관심사 트렌드, 추천 콘텐츠를 확인하세요.\n"
+                        "링크는 <b>7일간</b> 유효합니다."
+                    ),
+                    "parse_mode": "HTML",
+                    "reply_markup": {
+                        "inline_keyboard": [[
+                            {"text": "🔗 대시보드 열기", "url": dashboard_url},
+                        ]]
+                    },
+                },
+            )
+            if not resp.is_success:
+                logger.error(
+                    f"send_dashboard_button failed {resp.status_code}: {resp.text}"
+                )
+
     async def set_webhook(self, url: str) -> None:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
@@ -173,6 +201,7 @@ class TelegramRepository(TelegramPort):
             {"command": "memo", "description": "메모와 함께 링크 저장"},
             {"command": "search", "description": "저장된 링크 검색"},
             {"command": "ask", "description": "AI 에이전트에 질문"},
+            {"command": "dashboard", "description": "개인 지식 대시보드 열기"},
         ]
 
         try:

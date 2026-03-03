@@ -70,15 +70,6 @@ def _formatter(record: dict) -> str:
     )
 
 
-# 💡 핵심 수정 2: Loguru Patcher를 이용한 자동 Pretty Print
-def _patch_record(record: dict) -> None:
-    """로그 메시지가 dict/list 형태일 경우 자동으로 Pretty Print 적용"""
-    # 주의: 직접 logger.info({"a": 1}) 처럼 넘긴 경우 record["message"]는
-    # 이미 문자열로 변환되어 있을 수 있습니다.
-    # 따라서 로그 기록 시 logger.info("Data:\n{}", _pretty_message(data)) 사용을 권장합니다.
-    pass
-
-
 def pretty_format(data: Any) -> str:
     """사용자가 직접 호출해서 쓸 수 있는 Pretty Helper"""
     if isinstance(data, (dict, list)):

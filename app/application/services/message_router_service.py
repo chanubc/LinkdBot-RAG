@@ -253,15 +253,21 @@ class MessageRouterService:
         self, telegram_id: int, payload: str = "", background_tasks: BackgroundTasks | None = None
     ) -> None:
         """개인 대시보드 링크 발송 (JWT stateless — StateStore 불필요)."""
+        await self._run_safe(
+            telegram_id,
+            background_tasks,
+            self._send_dashboard_message,
+            telegram_id,
+            error_msg="대시보드 링크 생성 중 오류가 발생했습니다.",
+        )
+
+    async def _send_dashboard_message(self, telegram_id: int) -> None:
         from app.core.jwt import create_dashboard_token
         from app.core.config import settings
 
         token = create_dashboard_token(telegram_id)
         url = f"{settings.DASHBOARD_URL}?token={token}"
-        await self._telegram.send_message(
-            telegram_id,
-            f"📊 개인 대시보드:\n{url}\n\n링크는 7일간 유효합니다.",
-        )
+        await self._telegram.send_dashboard_button(telegram_id, url)
 
     async def _execute_search_and_send_results(self, telegram_id: int, query: str) -> None:
         """검색 실행 및 결과 전송 (background에서 실행).

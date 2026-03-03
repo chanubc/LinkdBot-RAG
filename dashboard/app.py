@@ -46,16 +46,11 @@ if "telegram_id" not in st.session_state:
         _client = DashboardAPIClient(jwt_token=jwt_token)
         result = _client.verify_token()
         if result:
-            # Sliding window: 방문할 때마다 토큰 갱신 → 7일 이내 접속 시 영구 로그인 유지
-            from app.core.jwt import create_dashboard_token
-
-            new_token = create_dashboard_token(result["telegram_id"])
-            controller.set(COOKIE_KEY, new_token, max_age=7 * 24 * 3600)
             st.session_state.update(
                 {
                     "telegram_id": result["telegram_id"],
                     "first_name": result.get("first_name"),
-                    "jwt_token": new_token,
+                    "jwt_token": jwt_token,
                 }
             )
             if "token" in st.query_params:

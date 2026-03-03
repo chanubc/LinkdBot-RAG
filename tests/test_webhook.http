@@ -170,6 +170,23 @@ Content-Type: application/json
 }
 
 ### ──────────────────────────────────────────
+### /dashboard — 대시보드 링크 버튼 발송
+### ──────────────────────────────────────────
+POST {{base_url}}/api/v1/webhook/telegram
+Content-Type: application/json
+
+{
+  "update_id": 100000011,
+  "message": {
+    "message_id": 11,
+    "from": { "id": {{telegram_id}}, "is_bot": false, "first_name": "TestUser" },
+    "chat": { "id": {{telegram_id}}, "type": "private" },
+    "date": 1700000000,
+    "text": "/dashboard"
+  }
+}
+
+### ──────────────────────────────────────────
 ### REST Search API — GET /api/v1/search
 ### ──────────────────────────────────────────
 GET {{base_url}}/api/v1/search?telegram_id={{telegram_id}}&q=파이썬&top_k=5
@@ -223,6 +240,30 @@ Authorization: Bearer {{jwt_token}}
 ### /links/me — 미열람 링크만, AI 카테고리 필터
 ### ──────────────────────────────────────────
 GET {{base_url}}/api/v1/dashboard/links/me?is_read=false&category=AI&page=1&page_size=25
+Authorization: Bearer {{jwt_token}}
+
+### ──────────────────────────────────────────
+### /stats/me — 전체 통계 (읽음률, 카테고리 분포 등)
+### ──────────────────────────────────────────
+GET {{base_url}}/api/v1/dashboard/stats/me
+Authorization: Bearer {{jwt_token}}
+
+### ──────────────────────────────────────────
+### /search/me — 시맨틱 검색 (JWT 기반 IDOR 방지)
+### ──────────────────────────────────────────
+GET {{base_url}}/api/v1/dashboard/search/me?q=머신러닝&top_k=5
+Authorization: Bearer {{jwt_token}}
+
+### ──────────────────────────────────────────
+### /links/{id}/read — 읽음 처리 (IDOR: 본인 링크만)
+### ──────────────────────────────────────────
+PATCH {{base_url}}/api/v1/dashboard/links/1/read
+Authorization: Bearer {{jwt_token}}
+
+### ──────────────────────────────────────────
+### /links/{id} — 링크 삭제 (IDOR: 본인 링크만)
+### ──────────────────────────────────────────
+DELETE {{base_url}}/api/v1/dashboard/links/1
 Authorization: Bearer {{jwt_token}}
 
 ### ──────────────────────────────────────────

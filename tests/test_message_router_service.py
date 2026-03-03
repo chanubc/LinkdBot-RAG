@@ -262,6 +262,26 @@ async def test_run_safe_without_background_tasks(router_service, mock_dependenci
 
 
 @pytest.mark.asyncio
+async def test_dashboard_command_sends_url(router_service, mock_dependencies):
+    """/dashboard 명령어 → create_dashboard_token → ?token= URL이 포함된 메시지 전송."""
+    with patch("app.core.jwt.create_dashboard_token", return_value="test.jwt.token") as mock_create_token:
+        await router_service.route(123, "/dashboard", None)
+
+        mock_create_token.assert_called_once_with(123)
+        mock_dependencies["telegram"].send_dashboard_button.assert_called_once()
+        call_args = mock_dependencies["telegram"].send_dashboard_button.call_args[0]
+        assert call_args[0] == 123
+        assert "test.jwt.token" in call_args[1]
+
+
+@pytest.mark.asyncio
+async def test_dashboard_in_slash_handler_map(router_service):
+    """/dashboard 핸들러가 _slash_handlers에 등록되어 있는지 확인."""
+    assert "/dashboard" in router_service._slash_handlers
+    assert router_service._slash_handlers["/dashboard"] == router_service._handle_dashboard
+
+
+@pytest.mark.asyncio
 async def test_run_safe_error_handling(router_service, mock_dependencies):
     """Test _run_safe handles errors and sends error message."""
     mock_coro = AsyncMock(side_effect=Exception("Test error"))

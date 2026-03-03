@@ -127,7 +127,6 @@ def _render_recommendation_card(
                          use_container_width=True):
                 try:
                     client.mark_link_read(link["id"])
-                    st.session_state.pop("home_data", None)
                     st.rerun()
                 except Exception as e:
                     st.error(str(e))
