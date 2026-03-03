@@ -56,3 +56,5 @@ logs/
 .claude/settings.local.json
 tmpclaude-*
 
+# OMX session/runtime artifacts
+.omx/
