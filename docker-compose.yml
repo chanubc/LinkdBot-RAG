@@ -13,6 +13,21 @@ services:
     networks:
       - n8n-docker_default
 
+  dashboard:
+    build: .
+    restart: always
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    environment:
+      - DASHBOARD_API_URL=http://app:8000
+    command: streamlit run dashboard/app.py --server.port 8501 --server.address 0.0.0.0 --server.headless true
+    networks:
+      - n8n-docker_default
+    depends_on:
+      - app
+
 networks:
   n8n-docker_default:
     external: true
