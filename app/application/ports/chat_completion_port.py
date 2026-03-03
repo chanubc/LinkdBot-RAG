@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Any
 
 from app.application.models.llm import LLMChatCompletion, LLMMessage, LLMTool
 

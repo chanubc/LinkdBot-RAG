@@ -25,11 +25,17 @@ class OpenAILLMGateway(ChatCompletionPort):
 
         # Structured Output path
         if response_format is not None:
-            response = await self._client.beta.chat.completions.parse(
-                model=model,
-                messages=openai_messages,
-                response_format=response_format,
-            )
+            openai_tools = [self._tool_to_openai(t) for t in tools] if tools else None
+            kwargs: dict = {
+                "model": model,
+                "messages": openai_messages,
+                "response_format": response_format,
+                "temperature": temperature,
+            }
+            if openai_tools:
+                kwargs["tools"] = openai_tools
+                kwargs["tool_choice"] = tool_choice
+            response = await self._client.beta.chat.completions.parse(**kwargs)
             choice = response.choices[0]
             response_message = LLMMessage(
                 role=choice.message.role,
