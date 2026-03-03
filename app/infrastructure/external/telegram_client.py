@@ -2,8 +2,9 @@ import html
 
 import httpx
 
-from app.application.ports.telegram_port import TelegramPort
 from app.core.config import settings
+from app.application.ports.telegram_port import TelegramPort
+
 from app.core.logger import logger
 
 
@@ -12,17 +13,11 @@ class TelegramRepository(TelegramPort):
     def _base(self) -> str:
         return f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}"
 
-    async def send_message(
-        self, chat_id: int, text: str, reply_markup: dict | None = None
-    ) -> None:
-        payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
-        if reply_markup:
-            payload["reply_markup"] = reply_markup
-
+    async def send_message(self, chat_id: int, text: str) -> None:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 f"{self._base}/sendMessage",
-                json=payload,
+                json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"},
             )
             if not resp.is_success:
                 logger.error(
@@ -44,12 +39,10 @@ class TelegramRepository(TelegramPort):
                     ),
                     "parse_mode": "HTML",
                     "reply_markup": {
-                        "inline_keyboard": [
-                            [
-                                {"text": "📖 도움말", "callback_data": "help"},
-                                {"text": "🔗 Notion 연동하기", "url": login_url},
-                            ]
-                        ]
+                        "inline_keyboard": [[
+                            {"text": "📖 도움말", "callback_data": "help"},
+                            {"text": "🔗 Notion 연동하기", "url": login_url},
+                        ]]
                     },
                 },
             )
@@ -104,28 +97,11 @@ class TelegramRepository(TelegramPort):
                 "<b>5️⃣ AI 질문</b>\n"
                 "저장된 지식 기반으로 AI가 답변해드려요\n"
                 "<code>/ask [질문]</code>\n"
-                "예시: <code>/ask 머신러닝이란?</code>\n\n"
-                "<b>6️⃣ 개인 대시보드</b>\n"
-                "내 저장 기록과 분석 통계를 웹에서 확인해요\n"
-                "<code>/dashboard</code> 입력 시 전용 링크 발급"
+                "예시: <code>/ask 머신러닝이란?</code>"
             ),
         )
 
-    async def send_dashboard_button(self, chat_id: int, dashboard_url: str) -> None:
-        """대시보드 접속용 인라인 버튼 전송."""
-        await self.send_message(
-            chat_id,
-            "📊 <b>개인 대시보드 링크가 발급되었습니다.</b>\n\n아래 버튼을 눌러 접속해주세요.\n(링크는 7일간 유효합니다)",
-            reply_markup={
-                "inline_keyboard": [
-                    [{"text": "🚀 대시보드 열기", "url": dashboard_url}]
-                ]
-            },
-        )
-
-    async def send_welcome_connected(
-        self, chat_id: int, first_name: str | None = None
-    ) -> None:
+    async def send_welcome_connected(self, chat_id: int, first_name: str | None = None) -> None:
         """Notion 이미 연동된 유저에게 사용법 안내 메시지 전송."""
         name = first_name or "사용자"
         await self.send_message(
@@ -141,15 +117,10 @@ class TelegramRepository(TelegramPort):
             ),
         )
 
-    async def send_search_results(
-        self, chat_id: int, query: str, results: list[dict]
-    ) -> None:
+    async def send_search_results(self, chat_id: int, query: str, results: list[dict]) -> None:
         """검색 결과 전송."""
         if not results:
-            await self.send_message(
-                chat_id,
-                f"🔍 <b>{query}</b>\n\n저장된 링크 중 관련 내용을 찾지 못했어요.",
-            )
+            await self.send_message(chat_id, f"🔍 <b>{query}</b>\n\n저장된 링크 중 관련 내용을 찾지 못했어요.")
             return
 
         lines = [f"🔍 <b>{html.escape(query)}</b> 검색 결과\n"]
@@ -160,7 +131,7 @@ class TelegramRepository(TelegramPort):
             line = f"{i}. <b>{title}</b> ({similarity:.0%})"
             if url:
                 escaped_url = html.escape(url)
-                line += f'\n    <a href="{escaped_url}">{escaped_url}</a>'
+                line += f"\n    <a href=\"{escaped_url}\">{escaped_url}</a>"
             lines.append(line)
 
         await self.send_message(chat_id, "\n".join(lines))
@@ -183,14 +154,9 @@ class TelegramRepository(TelegramPort):
         payload: dict = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
         if link_id is not None:
             payload["reply_markup"] = {
-                "inline_keyboard": [
-                    [
-                        {
-                            "text": "✅ 읽음 처리",
-                            "callback_data": f"mark_read:{link_id}",
-                        },
-                    ]
-                ]
+                "inline_keyboard": [[
+                    {"text": "✅ 읽음 처리", "callback_data": f"mark_read:{link_id}"},
+                ]]
             }
         async with httpx.AsyncClient() as client:
             resp = await client.post(f"{self._base}/sendMessage", json=payload)
@@ -207,7 +173,6 @@ class TelegramRepository(TelegramPort):
             {"command": "memo", "description": "메모와 함께 링크 저장"},
             {"command": "search", "description": "저장된 링크 검색"},
             {"command": "ask", "description": "AI 에이전트에 질문"},
-            {"command": "dashboard", "description": "개인 대시보드 링크 발급"},
         ]
 
         try:

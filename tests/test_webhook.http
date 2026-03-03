@@ -174,23 +174,6 @@ Content-Type: application/json
 ### ──────────────────────────────────────────
 GET {{base_url}}/api/v1/search?telegram_id={{telegram_id}}&q=파이썬&top_k=5
 
-### ──────────────────────────────────────────
-### /dashboard — 개인 대시보드 링크 발급
-### ──────────────────────────────────────────
-POST {{base_url}}/api/v1/webhook/telegram
-Content-Type: application/json
-
-{
-  "update_id": 100000011,
-  "message": {
-    "message_id": 11,
-    "from": { "id": {{telegram_id}}, "is_bot": false, "first_name": "TestUser" },
-    "chat": { "id": {{telegram_id}}, "type": "private" },
-    "date": 1700000000,
-    "text": "/dashboard"
-  }
-}
-
 ### ══════════════════════════════════════════
 ### Phase 4: Dashboard API
 ### JWT 토큰 생성 방법:

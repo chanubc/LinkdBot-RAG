@@ -2,29 +2,27 @@
 
 All endpoints use /me pattern — telegram_id extracted from JWT, never from URL.
 """
-
-from collections import Counter
 from datetime import datetime, timedelta, timezone
 
 import numpy as np
 from fastapi import BackgroundTasks, Depends, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.routing import APIRouter
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
-from sqlalchemy.ext.asyncio import AsyncSession
+
+from collections import Counter
 
 from app.api.dependencies.auth_di import get_user_repository
 from app.api.dependencies.dashboard_auth import get_dashboard_telegram_id
 from app.api.dependencies.link_di import get_link_repository, get_openai_client
 from app.api.dependencies.rag_di import get_search_usecase
 from app.api.dependencies.report_di import get_weekly_report_usecase
+from app.application.usecases.search_usecase import SearchUseCase
 from app.application.ports.ai_analysis_port import AIAnalysisPort
 from app.application.usecases.generate_weekly_report_usecase import (
     GenerateWeeklyReportUseCase,
 )
-from app.application.usecases.search_usecase import SearchUseCase
 from app.domain.drift import calculate_drift
 from app.domain.repositories.i_link_repository import ILinkRepository
 from app.domain.repositories.i_user_repository import IUserRepository
@@ -34,6 +32,7 @@ from app.domain.scoring import (
     cosine_similarity,
 )
 from app.infrastructure.database import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
@@ -56,32 +55,10 @@ async def get_my_info(
 
 
 # ---------------------------------------------------------------------------
-# Auth / Access
+# Drift
 # ---------------------------------------------------------------------------
 
 
-@router.get("/access/{short_id}")
-async def access_dashboard(short_id: str):
-    """
-    텔레그램 채팅방에 긴 JWT 토큰이 노출되는 것을 방지하기 위한 단기 리다이렉트.
-    """
-    from app.core.short_links import short_link_store
-
-    token = short_link_store.consume(short_id)
-    if not token:
-        return HTMLResponse(
-            "<h3>만료되었거나 유효하지 않은 링크입니다.</h3>"
-            "<p>텔레그램 봇으로 돌아가서 다시 <code>/dashboard</code> 명령어를 입력해주세요.</p>",
-            status_code=400,
-        )
-
-    from app.core.config import settings
-
-    url = f"{settings.DASHBOARD_URL}?token={token}"
-    return RedirectResponse(url=url)
-
-
-@router.get("/auth/me")
 @router.get("/drift/me")
 async def get_my_drift(
     telegram_id: int = Depends(get_dashboard_telegram_id),
@@ -317,10 +294,12 @@ async def get_my_stats(
     total = len(links)
     read_count = sum(1 for l in links if l["is_read"])
     this_week_count = sum(
-        1 for l in links if l["created_at"] and l["created_at"][:10] >= week_ago
+        1 for l in links
+        if l["created_at"] and l["created_at"][:10] >= week_ago
     )
     this_month_count = sum(
-        1 for l in links if l["created_at"] and l["created_at"][:10] >= month_ago
+        1 for l in links
+        if l["created_at"] and l["created_at"][:10] >= month_ago
     )
 
     cat_counter = Counter(l["category"] for l in links if l["category"])
@@ -332,26 +311,25 @@ async def get_my_stats(
         if l["created_at"]:
             ym = l["created_at"][:7]  # "2026-03"
             monthly[ym] = monthly.get(ym, 0) + 1
-    monthly_series = [{"month": k, "count": v} for k, v in sorted(monthly.items())[-6:]]
+    monthly_series = [
+        {"month": k, "count": v}
+        for k, v in sorted(monthly.items())[-6:]
+    ]
 
     # 카테고리 분포
     category_dist = [
-        {"category": cat, "count": cnt} for cat, cnt in cat_counter.most_common()
+        {"category": cat, "count": cnt}
+        for cat, cnt in cat_counter.most_common()
     ]
 
     # 키워드 Top 20 (keywords는 JSON 배열 문자열)
     import json
-
     keyword_counter: Counter = Counter()
     for l in links:
         raw = l.get("keywords", "")
         if raw:
             try:
-                kws = (
-                    json.loads(raw)
-                    if raw.startswith("[")
-                    else [k.strip() for k in raw.split(",")]
-                )
+                kws = json.loads(raw) if raw.startswith("[") else [k.strip() for k in raw.split(",")]
                 keyword_counter.update(kws)
             except Exception:
                 pass
