@@ -253,6 +253,15 @@ class MessageRouterService:
         self, telegram_id: int, payload: str = "", background_tasks: BackgroundTasks | None = None
     ) -> None:
         """개인 대시보드 링크 발송 (JWT stateless — StateStore 불필요)."""
+        await self._run_safe(
+            telegram_id,
+            background_tasks,
+            self._send_dashboard_message,
+            telegram_id,
+            error_msg="대시보드 링크 생성 중 오류가 발생했습니다.",
+        )
+
+    async def _send_dashboard_message(self, telegram_id: int) -> None:
         from app.core.jwt import create_dashboard_token
         from app.core.config import settings
 

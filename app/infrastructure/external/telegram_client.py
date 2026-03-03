@@ -97,7 +97,10 @@ class TelegramRepository(TelegramPort):
                 "<b>5️⃣ AI 질문</b>\n"
                 "저장된 지식 기반으로 AI가 답변해드려요\n"
                 "<code>/ask [질문]</code>\n"
-                "예시: <code>/ask 머신러닝이란?</code>"
+                "예시: <code>/ask 머신러닝이란?</code>\n\n"
+                "<b>6️⃣ 대시보드</b>\n"
+                "저장한 링크·트렌드·추천을 웹에서 확인해요\n"
+                "<code>/dashboard</code>"
             ),
         )
 
@@ -173,6 +176,7 @@ class TelegramRepository(TelegramPort):
             {"command": "memo", "description": "메모와 함께 링크 저장"},
             {"command": "search", "description": "저장된 링크 검색"},
             {"command": "ask", "description": "AI 에이전트에 질문"},
+            {"command": "dashboard", "description": "개인 지식 대시보드 열기"},
         ]
 
         try:
