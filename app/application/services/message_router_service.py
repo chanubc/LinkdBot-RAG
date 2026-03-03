@@ -118,6 +118,10 @@ class MessageRouterService:
             return
 
         # 일반 텍스트 → 즉시 1차 응답 후 Intent 분류 + 처리
+        if self._is_likely_ask_text(text):
+            await self._process_ask(telegram_id, text, background_tasks)
+            return
+
         await self._telegram.send_message(telegram_id, "🤔 분석 중입니다...")
         try:
             routed = await self._intent_classifier.classify(text)
@@ -278,3 +282,57 @@ class MessageRouterService:
         results = await self._search_uc.execute(telegram_id, query)
         await self._telegram.send_search_results(telegram_id, query, results)
 
+    @staticmethod
+    def _is_likely_ask_text(text: str) -> bool:
+        normalized = text.strip().lower()
+        if not normalized:
+            return False
+
+        # 검색/메모 신호가 강하면 classifier에 맡긴다.
+        classifier_first_hints = (
+            "검색",
+            "찾아",
+            "search",
+            "find",
+            "memo",
+            "메모",
+            "기록",
+            "저장",
+            "help",
+            "use",
+            "usage",
+            "guide",
+            "instruction",
+            "getting started",
+            "도움",
+            "사용법",
+            "사용",
+            "start",
+            "시작",
+            "notion",
+            "connect",
+            "연동",
+            "로그인",
+            "login",
+        )
+        if any(hint in normalized for hint in classifier_first_hints):
+            return False
+
+        question_hints = (
+            "?",
+            "？",
+            "무엇",
+            "뭐",
+            "왜",
+            "어떻게",
+            "알려",
+            "설명",
+            "정리",
+            "궁금",
+            "what",
+            "why",
+            "how",
+            "explain",
+            "difference",
+        )
+        return any(hint in normalized for hint in question_hints)
