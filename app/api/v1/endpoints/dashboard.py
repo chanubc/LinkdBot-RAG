@@ -153,8 +153,8 @@ async def get_my_reactivation(
         created_at = c.get("created_at")
         if emb is None or created_at is None:
             continue
-        similarity = (cosine_similarity(emb, centroid) + 1) / 2
-        recency = calculate_forgetting_score(created_at)
+        similarity = float((cosine_similarity(emb, centroid) + 1) / 2)
+        recency = float(calculate_forgetting_score(created_at))
         score = similarity * 0.6 + recency * 0.4
         scored.append(
             {

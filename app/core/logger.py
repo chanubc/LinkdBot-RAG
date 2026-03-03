@@ -66,7 +66,7 @@ def _formatter(record: dict) -> str:
         "<level>{level: <8}</level> | "
         f"{method_part}"
         "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> — "
-        "<level>{message}</level>\n"
+        "<level>{message}</level>\n{exception}"
     )
 
 
