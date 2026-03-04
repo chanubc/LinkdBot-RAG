@@ -1,4 +1,5 @@
 from openai import AsyncOpenAI
+from pydantic import BaseModel
 
 from app.core.config import settings
 from app.application.models.llm import LLMChatCompletion, LLMMessage, LLMTool
@@ -18,7 +19,7 @@ class OpenAILLMGateway(ChatCompletionPort):
         tools: list[LLMTool] | None = None,
         tool_choice: str = "auto",
         temperature: float = 0.7,
-        response_format: type | None = None,
+        response_format: type[BaseModel] | None = None,
     ) -> LLMChatCompletion:
         """Call OpenAI chat.completions API and convert response to domain model."""
         openai_messages = [self._message_to_openai(msg) for msg in messages]

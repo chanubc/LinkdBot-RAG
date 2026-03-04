@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
 
+from pydantic import BaseModel
+
 from app.application.models.llm import LLMChatCompletion, LLMMessage, LLMTool
 
 
@@ -14,7 +16,7 @@ class ChatCompletionPort(ABC):
         tools: list[LLMTool] | None = None,
         tool_choice: str = "auto",
         temperature: float = 0.7,
-        response_format: type | None = None,
+        response_format: type[BaseModel] | None = None,
     ) -> LLMChatCompletion:
         """Send messages to LLM and receive response.
 
