@@ -51,5 +51,8 @@ class LLMChatCompletion:
     tool_calls: list[dict] | None = None
     """Optional: Tool calls from the response (for Function Calling)."""
 
+    parsed: Any | None = None
+    """Optional: Structured Output parsed result (Pydantic model instance)."""
+
     raw: Any | None = None
     """Optional: Provider's native response object for debugging."""

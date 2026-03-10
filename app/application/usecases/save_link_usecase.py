@@ -40,6 +40,10 @@ class SaveLinkUseCase:
         웹훅은 이 함수 호출 즉시 응답하므로, 모든 사용자 피드백은 이 함수 내에서 관리됨.
         """
         try:
+            if await self._link_repo.exists_by_user_and_url(telegram_id, url):
+                await self._telegram.send_message(telegram_id, "⚠️ 이미 저장된 링크입니다.")
+                return
+
             # 0. 즉시 피드백 (사용자에게 처리 시작 알림)
             await self._telegram.send_message(telegram_id, "🔗 링크를 저장하는 중이에요...")
 
@@ -58,11 +62,29 @@ class SaveLinkUseCase:
             keywords: list[str] = analysis.keywords
             keywords_json = json.dumps(keywords, ensure_ascii=False)
 
-            # 2-1. Summary 임베딩 생성 (Drift/Reactivation 계산용)
-            if summary:
-                [summary_embedding] = await self._openai.embed([summary])
+            # 2-1. Summary + chunks 임베딩을 1회 호출로 배치 처리
+            if content_source == "jina":
+                raw_chunks = split_markdown(content)
             else:
-                summary_embedding = None
+                raw_chunks = split_chunks(content)
+
+            embedding_inputs: list[str] = []
+            has_summary_embedding = bool(summary)
+            if has_summary_embedding:
+                embedding_inputs.append(summary)
+            embedding_inputs.extend(raw_chunks)
+
+            summary_embedding: list[float] | None = None
+            chunk_embeddings: list[list[float]] = []
+            if embedding_inputs:
+                batched_embeddings = await self._openai.embed(embedding_inputs)
+                if len(batched_embeddings) != len(embedding_inputs):
+                    raise ValueError("Embedding count mismatch")
+                chunk_start_idx = 0
+                if has_summary_embedding:
+                    summary_embedding = batched_embeddings[0]
+                    chunk_start_idx = 1
+                chunk_embeddings = batched_embeddings[chunk_start_idx:]
 
             # 3. DB 저장
             await self._user_repo.ensure_exists(telegram_id)
@@ -81,14 +103,9 @@ class SaveLinkUseCase:
                 await self._telegram.send_message(telegram_id, "⚠️ 이미 저장된 링크입니다.")
                 return
 
-            # 4. Embed & chunk 저장 (Jina 콘텐츠면 Markdown 분할, 아니면 단어 분할)
-            if content_source == "jina":
-                raw_chunks = split_markdown(content)
-            else:
-                raw_chunks = split_chunks(content)
-            if raw_chunks:
-                embeddings = await self._openai.embed(raw_chunks)
-                await self._chunk_repo.save_chunks(link.id, list(zip(raw_chunks, embeddings)))
+            # 4. chunk 저장
+            if raw_chunks and chunk_embeddings:
+                await self._chunk_repo.save_chunks(link.id, list(zip(raw_chunks, chunk_embeddings)))
 
             # 5. 단일 커밋
             await self._db.commit()

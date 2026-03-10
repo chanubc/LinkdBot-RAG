@@ -1,4 +1,5 @@
 from openai import AsyncOpenAI
+from pydantic import BaseModel
 
 from app.core.config import settings
 from app.application.models.llm import LLMChatCompletion, LLMMessage, LLMTool
@@ -18,10 +19,33 @@ class OpenAILLMGateway(ChatCompletionPort):
         tools: list[LLMTool] | None = None,
         tool_choice: str = "auto",
         temperature: float = 0.7,
+        response_format: type[BaseModel] | None = None,
     ) -> LLMChatCompletion:
         """Call OpenAI chat.completions API and convert response to domain model."""
-        # Convert domain models to OpenAI format
         openai_messages = [self._message_to_openai(msg) for msg in messages]
+
+        # Structured Output path
+        if response_format is not None:
+            if tools:
+                raise ValueError("Structured output does not support tools.")
+            response = await self._client.beta.chat.completions.parse(
+                model=model,
+                messages=openai_messages,
+                response_format=response_format,
+                temperature=temperature,
+            )
+            choice = response.choices[0]
+            response_message = LLMMessage(
+                role=choice.message.role,
+                content=choice.message.content,
+            )
+            return LLMChatCompletion(
+                message=response_message,
+                parsed=choice.message.parsed,
+                raw=response,
+            )
+
+        # Standard chat completion path
         openai_tools = None
         if tools:
             openai_tools = [self._tool_to_openai(tool) for tool in tools]
@@ -39,7 +63,6 @@ class OpenAILLMGateway(ChatCompletionPort):
         choice = response.choices[0]
         message = choice.message
 
-        # Convert OpenAI response to domain model
         response_message = LLMMessage(
             role=message.role,
             content=message.content,

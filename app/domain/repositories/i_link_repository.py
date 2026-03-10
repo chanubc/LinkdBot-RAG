@@ -6,6 +6,9 @@ from app.models.link import Link
 
 class ILinkRepository(ABC):
     @abstractmethod
+    async def exists_by_user_and_url(self, user_id: int, url: str) -> bool: ...
+
+    @abstractmethod
     async def save_link(
         self,
         user_id: int,

@@ -41,13 +41,12 @@ class KnowledgeAgent:
                 messages=messages,
                 model=LLM_AGENT,
                 tools=TOOLS,
-                tool_choice="auto",
+                tool_choice="required",
             )
 
             if not response.tool_calls:
-                await self._telegram.send_message(
-                    telegram_id, response.message.content or "답변을 생성할 수 없습니다."
-                )
+                logger.warning("tool_choice=required but no tool_calls returned (telegram_id=%d)", telegram_id)
+                await self._telegram.send_message(telegram_id, "답변을 생성할 수 없습니다.")
                 return
 
             # Add assistant response to messages

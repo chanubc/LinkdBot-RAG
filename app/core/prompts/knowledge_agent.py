@@ -9,7 +9,11 @@ Use the available tools to search for relevant information and provide accurate,
 TOOLS = [
     LLMTool(
         name="search_knowledge_base",
-        description="Search relevant content from the user's saved links and memos.",
+        description=(
+            "Search for content by keyword or topic from ALL saved links and memos "
+            "(including already-read ones). Use for questions about specific topics, "
+            "or when the user asks to find or list saved content."
+        ),
         parameters={
             "type": "object",
             "properties": {
@@ -23,7 +27,10 @@ TOOLS = [
     ),
     LLMTool(
         name="get_unread_links",
-        description="Retrieve the list of unread saved links.",
+        description=(
+            "Retrieve UNREAD saved links only. "
+            "Use ONLY when the user explicitly asks about unread or new links they haven't read yet."
+        ),
         parameters={
             "type": "object",
             "properties": {

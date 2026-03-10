@@ -12,6 +12,12 @@ class LinkRepository(ILinkRepository):
     def __init__(self, db: AsyncSession) -> None:
         self._db = db
 
+    async def exists_by_user_and_url(self, user_id: int, url: str) -> bool:
+        result = await self._db.execute(
+            select(Link.id).where(Link.user_id == user_id, Link.url == url).limit(1)
+        )
+        return result.scalar_one_or_none() is not None
+
     async def save_link(
         self,
         user_id: int,
