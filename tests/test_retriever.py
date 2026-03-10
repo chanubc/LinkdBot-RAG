@@ -97,6 +97,49 @@ async def test_invalid_keywords_json_handled_gracefully():
 
 
 @pytest.mark.asyncio
+async def test_keywords_with_non_string_values_handled():
+    """keywords에 숫자, None, dict 등 비문자값이 섞여 있어도 처리되어야 한다."""
+    retriever, chunk_repo = make_retriever()
+    chunk_repo.search_similar.return_value = [
+        {**_make_result(1, "테스트", [], dense_score=0.8),
+         "keywords": json.dumps([1, "AI", None, {"x": 1}, "머신러닝"])},
+    ]
+
+    results = await retriever.retrieve(user_id=111, query="AI 머신러닝", top_k=5)
+
+    assert len(results) == 1
+    # 문자열 키워드 "AI", "머신러닝" 만 매칭되어야 함
+    assert results[0]["similarity"] > 0.8 * 0.7  # keyword boost 적용됨
+
+
+@pytest.mark.asyncio
+async def test_keywords_not_a_list_handled():
+    """keywords JSON이 list가 아닌 경우 keyword_score=0으로 처리해야 한다."""
+    retriever, chunk_repo = make_retriever()
+    chunk_repo.search_similar.return_value = [
+        {**_make_result(1, "테스트", [], dense_score=0.8),
+         "keywords": json.dumps({"a": "b"})},
+    ]
+
+    results = await retriever.retrieve(user_id=111, query="테스트", top_k=5)
+
+    assert len(results) == 1
+
+
+@pytest.mark.asyncio
+async def test_keywords_null_handled():
+    """keywords가 null/None인 경우 keyword_score=0으로 처리해야 한다."""
+    retriever, chunk_repo = make_retriever()
+    result = _make_result(1, "테스트", [], dense_score=0.8)
+    result["keywords"] = None
+    chunk_repo.search_similar.return_value = [result]
+
+    results = await retriever.retrieve(user_id=111, query="테스트", top_k=5)
+
+    assert len(results) == 1
+
+
+@pytest.mark.asyncio
 async def test_recall_k_is_wider_than_top_k():
     """DB 조회 시 recall_k가 top_k보다 충분히 크게 호출되어야 한다."""
     retriever, chunk_repo = make_retriever()

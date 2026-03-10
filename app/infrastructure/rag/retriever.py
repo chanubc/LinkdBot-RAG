@@ -47,9 +47,12 @@ def _rescore_with_keywords(results: list[dict], query: str) -> list[dict]:
         raw_keywords = r.get("keywords")
         if raw_keywords:
             try:
-                link_keywords = {k.lower() for k in json.loads(raw_keywords)}
+                parsed = json.loads(raw_keywords)
+                if not isinstance(parsed, list):
+                    parsed = []
+                link_keywords = {k.lower() for k in parsed if isinstance(k, str) and k.strip()}
                 overlap = len(query_tokens & link_keywords) / len(query_tokens)
-            except (json.JSONDecodeError, TypeError):
+            except (json.JSONDecodeError, TypeError, AttributeError):
                 pass
 
         final_score = dense_score * (1 - keyword_weight) + overlap * keyword_weight
