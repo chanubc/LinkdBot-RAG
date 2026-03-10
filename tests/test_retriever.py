@@ -94,3 +94,36 @@ async def test_invalid_keywords_json_handled_gracefully():
     results = await retriever.retrieve(user_id=111, query="테스트", top_k=5)
 
     assert len(results) == 1  # 에러 없이 결과 반환
+
+
+@pytest.mark.asyncio
+async def test_recall_k_is_wider_than_top_k():
+    """DB 조회 시 recall_k가 top_k보다 충분히 크게 호출되어야 한다."""
+    retriever, chunk_repo = make_retriever()
+    chunk_repo.search_similar.return_value = []
+
+    await retriever.retrieve(user_id=111, query="테스트", top_k=5)
+
+    called_top_k = chunk_repo.search_similar.call_args[0][2]
+    assert called_top_k > 5
+
+
+@pytest.mark.asyncio
+async def test_low_dense_rank_rises_via_keyword_overlap():
+    """dense 순위는 낮지만 keyword 매칭으로 최종 top_k 안에 들어오는 케이스."""
+    retriever, chunk_repo = make_retriever()
+
+    # DB는 dense 기준 B(0.80) > A(0.50) 순으로 반환
+    chunk_repo.search_similar.return_value = [
+        _make_result(2, "B dense top", ["random", "stuff"], dense_score=0.80),
+        _make_result(1, "A keyword match", ["하나증권", "채용", "금융", "취업", "AI"], dense_score=0.50),
+    ]
+
+    # top_k=1로 요청 — dense만 보면 B가 1등
+    results = await retriever.retrieve(user_id=111, query="하나증권 채용", top_k=1)
+
+    # keyword 매칭 덕분에 A가 1등
+    # A: 0.50 * 0.7 + (2/2) * 0.3 = 0.35 + 0.30 = 0.65
+    # B: 0.80 * 0.7 + 0.0  * 0.3  = 0.56
+    assert results[0]["link_id"] == 1
+    assert len(results) == 1
