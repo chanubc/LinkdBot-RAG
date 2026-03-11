@@ -51,7 +51,7 @@
     Pure Logic
   </text>
 
-  <!-- 의존성 화살표 (안쪽→바깥쪽) -->
+  <!-- 의존성 화살표 (바깥쪽→안쪽) -->
   <defs>
     <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
       <polygon points="0 0, 10 3, 0 6" fill="#64748b"/>
