@@ -308,6 +308,17 @@ async def test_ask_flow_sends_single_progress_message_and_final_answer(router_se
 
 
 @pytest.mark.asyncio
+async def test_ask_flow_escapes_html_answer_before_sending(router_service, mock_dependencies):
+    """LLM 답변은 Telegram HTML 렌더링 전에 escape된다."""
+    mock_dependencies["agent"].answer.return_value = "<b>unsafe</b>"
+
+    await router_service.route(123, "RAG가 뭐야?")
+
+    last_call = mock_dependencies["telegram"].send_message.call_args_list[-1][0]
+    assert last_call == (123, "&lt;b&gt;unsafe&lt;/b&gt;")
+
+
+@pytest.mark.asyncio
 async def test_run_safe_error_handling(router_service, mock_dependencies):
     """Test _run_safe handles errors and sends error message."""
     mock_coro = AsyncMock(side_effect=Exception("Test error"))

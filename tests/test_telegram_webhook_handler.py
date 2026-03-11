@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import BackgroundTasks
@@ -95,3 +95,39 @@ async def test_mark_read_callback_uses_usecase_and_sends_success_message(
 
     webhook_dependencies["mark_read_uc"].execute.assert_awaited_once_with(123, 7)
     webhook_dependencies["telegram"].send_message.assert_awaited_once_with(123, "✅ 읽음 처리되었습니다.")
+
+
+@pytest.mark.asyncio
+async def test_mark_read_callback_sends_not_found_message_when_usecase_returns_false(
+    webhook_handler, webhook_dependencies
+):
+    webhook_dependencies["mark_read_uc"].execute.return_value = False
+    callback = {
+        "id": "callback-3",
+        "data": "mark_read:8",
+        "from": {"id": 123},
+    }
+
+    await webhook_handler._handle_callback(callback)
+
+    webhook_dependencies["mark_read_uc"].execute.assert_awaited_once_with(123, 8)
+    webhook_dependencies["telegram"].send_message.assert_awaited_once_with(123, "링크를 찾을 수 없습니다.")
+
+
+@pytest.mark.asyncio
+async def test_mark_read_callback_logs_warning_when_usecase_raises(
+    webhook_handler, webhook_dependencies
+):
+    webhook_dependencies["mark_read_uc"].execute.side_effect = Exception("db failure")
+    callback = {
+        "id": "callback-4",
+        "data": "mark_read:9",
+        "from": {"id": 123},
+    }
+
+    with patch("app.application.services.telegram_webhook_handler.logger.warning") as mock_warning:
+        await webhook_handler._handle_callback(callback)
+
+    webhook_dependencies["telegram"].answer_callback_query.assert_awaited_once_with("callback-4")
+    webhook_dependencies["telegram"].send_message.assert_not_awaited()
+    mock_warning.assert_called_once()

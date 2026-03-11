@@ -22,8 +22,8 @@ This skill is **project-local** and follows:
 4. Extract the created issue number `N`.
 5. Update local `main`.
 6. Create and checkout a branch named:
-   - `feat/#N-{english-kebab-case-description}`
-   - or another appropriate prefix (`fix`, `chore`, etc.) if the user explicitly wants that.
+   - `prefix/#N-{english-kebab-case-description}`
+   - choose the appropriate prefix such as `feat`, `fix`, `refactor`, or `chore`
 7. Print:
 
 ```text
@@ -67,5 +67,5 @@ git pull origin main
 Branch creation:
 
 ```bash
-git checkout -b feat/#N-{description}
+git checkout -b prefix/#N-{description}
 ```

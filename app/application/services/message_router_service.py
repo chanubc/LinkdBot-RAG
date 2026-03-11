@@ -1,3 +1,4 @@
+import html
 import re
 
 from app.application.ports.knowledge_agent_port import KnowledgeAgentPort
@@ -272,7 +273,7 @@ class MessageRouterService:
     async def _answer_and_send(self, telegram_id: int, query: str) -> None:
         """질문 응답 생성 후 전송."""
         answer = await self._agent.answer(telegram_id, query)
-        await self._telegram.send_message(telegram_id, answer)
+        await self._telegram.send_message(telegram_id, html.escape(answer))
 
     @staticmethod
     def _is_likely_ask_text(text: str) -> bool:

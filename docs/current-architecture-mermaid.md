@@ -23,26 +23,28 @@ flowchart TB
     handler -->|URL 포함 메시지| saveLink[SaveLinkUseCase]
     handler -->|일반 텍스트 / slash command| router[MessageRouterService]
 
-    callback --> linkRepo[LinkRepository]
+    callback --> markRead[MarkReadUseCase]
+    markRead --> linkRepo[LinkRepository]
     linkRepo --> db[(PostgreSQL)]
 
     router --> askLike{질문형 텍스트?}
-    askLike -->|Yes| agentAdapter[KnowledgeAgentAdapter]
+    askLike -->|Yes| askFlow[Ask Flow]
     askLike -->|No| classifier[OpenAIIntentClassifier]
 
     classifier --> llmGateway[OpenAILLMGateway]
     llmGateway --> openai[(OpenAI API)]
     classifier --> intent{Intent 결과}
 
-    intent -->|ASK| agentAdapter
+    intent -->|ASK| askFlow
     intent -->|SEARCH| searchUC[SearchUseCase]
     intent -->|MEMO| saveMemo[SaveMemoUseCase]
     intent -->|START / HELP / DASHBOARD| helper[AuthService / Telegram helper]
 
-    agentAdapter --> knowledgeAgent[KnowledgeAgent]
+    askFlow --> knowledgeAgent[KnowledgeAgent]
     knowledgeAgent --> llmGateway
     knowledgeAgent --> retriever[HybridRetriever]
     knowledgeAgent --> linkRepo
+    askFlow --> telegram[TelegramRepository]
 
     searchUC --> retriever
     retriever --> openaiRepo[OpenAIRepository<br/>embed / analyze]
@@ -63,7 +65,6 @@ flowchart TB
     saveMemo --> chunkRepo
     saveMemo --> notion
 
-    knowledgeAgent --> telegram[TelegramRepository]
     saveLink --> telegram
     saveMemo --> telegram
     helper --> telegram
@@ -78,7 +79,6 @@ flowchart TB
 sequenceDiagram
     participant U as User
     participant MR as MessageRouterService
-    participant KAAD as KnowledgeAgentAdapter
     participant KA as KnowledgeAgent
     participant LLM as OpenAILLMGateway
     participant OAI as OpenAI API
@@ -88,9 +88,8 @@ sequenceDiagram
     participant TG as TelegramRepository
 
     U->>MR: /ask 질문 또는 질문형 일반 텍스트
-    MR->>KAAD: run(telegram_id, query)
-    KAAD->>TG: "🤖 답변을 생성하는 중입니다..."
-    KAAD->>KA: handle(telegram_id, query)
+    MR->>TG: "🤖 답변을 생성하는 중입니다..."
+    MR->>KA: answer(telegram_id, query)
 
     KA->>LLM: chat_completions(tools=required, model=gpt-4.1)
     LLM->>OAI: tool calling 요청
@@ -113,7 +112,8 @@ sequenceDiagram
     LLM->>OAI: 최종 답변 생성
     OAI-->>LLM: final answer
     LLM-->>KA: answer
-    KA->>TG: send_message(answer)
+    KA-->>MR: answer text
+    MR->>TG: send_message(answer)
 ```
 
 ---
@@ -204,7 +204,6 @@ flowchart LR
   - `app/application/services/message_router_service.py`
 - **Agent**
   - `app/application/agents/knowledge_agent.py`
-  - `app/infrastructure/adapters/knowledge_agent_adapter.py`
 - **LLM**
   - `app/infrastructure/llm/openai_llm_gateway.py`
   - `app/infrastructure/llm/openai_client.py`
@@ -215,6 +214,7 @@ flowchart LR
   - `app/application/usecases/save_link_usecase.py`
   - `app/application/usecases/save_memo_usecase.py`
   - `app/application/usecases/search_usecase.py`
+  - `app/application/usecases/mark_read_usecase.py`
 
 ---
 

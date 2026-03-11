@@ -72,7 +72,7 @@ class KnowledgeAgent(KnowledgeAgentPort):
 
         except Exception as exc:
             logger.exception(f"KnowledgeAgent.answer error (telegram_id={telegram_id})")
-            return f"❌ 처리 실패: {str(exc)[:200]}"
+            return "❌ 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
 
     async def _execute_tool(
         self, telegram_id: int, tool_name: str, args: dict
