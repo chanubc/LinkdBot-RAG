@@ -9,6 +9,7 @@ from app.api.dependencies.auth_di import (
 from app.application.usecases.save_link_usecase import SaveLinkUseCase
 from app.application.usecases.mark_read_usecase import MarkReadUseCase
 from app.application.usecases.save_memo_usecase import SaveMemoUseCase
+from app.application.usecases.recall_memo_usecase import RecallMemoUseCase
 from app.application.ports.notion_port import NotionPort
 from app.application.ports.ai_analysis_port import AIAnalysisPort
 from app.application.ports.scraper_port import ScraperPort
@@ -72,3 +73,9 @@ def get_mark_read_usecase(
     link_repo: LinkRepository = Depends(get_link_repository),
 ) -> MarkReadUseCase:
     return MarkReadUseCase(db, link_repo)
+
+
+def get_recall_memo_usecase(
+    link_repo: LinkRepository = Depends(get_link_repository),
+) -> RecallMemoUseCase:
+    return RecallMemoUseCase(link_repo)

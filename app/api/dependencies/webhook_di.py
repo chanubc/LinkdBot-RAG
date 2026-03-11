@@ -6,7 +6,12 @@ from app.api.dependencies.auth_di import (
     get_telegram_client,
     get_user_repository,
 )
-from app.api.dependencies.link_di import get_mark_read_usecase, get_save_link_usecase, get_save_memo_usecase
+from app.api.dependencies.link_di import (
+    get_mark_read_usecase,
+    get_recall_memo_usecase,
+    get_save_link_usecase,
+    get_save_memo_usecase,
+)
 from app.api.dependencies.rag_di import get_search_usecase
 from app.application.ports.knowledge_agent_port import KnowledgeAgentPort
 from app.application.ports.intent_router_port import IntentRouterPort
@@ -16,6 +21,7 @@ from app.application.services.message_router_service import MessageRouterService
 from app.application.usecases.mark_read_usecase import MarkReadUseCase
 from app.application.usecases.save_link_usecase import SaveLinkUseCase
 from app.application.usecases.save_memo_usecase import SaveMemoUseCase
+from app.application.usecases.recall_memo_usecase import RecallMemoUseCase
 from app.application.usecases.search_usecase import SearchUseCase
 from app.application.ports.telegram_port import TelegramPort
 from app.domain.repositories.i_user_repository import IUserRepository
@@ -27,12 +33,20 @@ def get_message_router(
     agent: KnowledgeAgentPort = Depends(get_knowledge_agent),
     search_uc: SearchUseCase = Depends(get_search_usecase),
     save_memo_uc: SaveMemoUseCase = Depends(get_save_memo_usecase),
+    recall_memo_uc: RecallMemoUseCase = Depends(get_recall_memo_usecase),
     telegram: TelegramPort = Depends(get_telegram_client),
     user_repo: UserRepository = Depends(get_user_repository),
     auth_service: AuthService = Depends(get_auth_service),
 ) -> MessageRouterService:
     return MessageRouterService(
-        intent_classifier, agent, search_uc, save_memo_uc, telegram, user_repo, auth_service
+        intent_classifier,
+        agent,
+        search_uc,
+        save_memo_uc,
+        recall_memo_uc,
+        telegram,
+        user_repo,
+        auth_service,
     )
 
 

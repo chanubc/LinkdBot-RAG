@@ -82,6 +82,34 @@ class LinkRepository(ILinkRepository):
         )
         return list(result.scalars().all())
 
+    async def get_memos_by_period(
+        self,
+        user_id: int,
+        start: datetime,
+        end: datetime,
+        query: str | None = None,
+        limit: int = 10,
+    ) -> list[Link]:
+        """기간 내 메모 목록 반환 (최신순)."""
+        stmt = (
+            select(Link)
+            .where(
+                Link.user_id == user_id,
+                Link.created_at >= start,
+                Link.created_at < end,
+                Link.url.is_(None),
+                Link.memo.isnot(None),
+            )
+            .order_by(Link.created_at.desc())
+            .limit(limit)
+        )
+        if query and query.strip():
+            q = f"%{query.strip()}%"
+            stmt = stmt.where(Link.memo.ilike(q))
+
+        result = await self._db.execute(stmt)
+        return list(result.scalars().all())
+
     # --- Phase 3: Proactive Agent ---
 
     async def get_categories_by_period(

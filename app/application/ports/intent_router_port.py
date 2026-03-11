@@ -10,6 +10,7 @@ class RouterOutput(BaseModel):
 
     intent: Intent
     query: str | None = None
+    time_filter: str | None = None
 
 
 class IntentRouterPort(ABC):

@@ -34,6 +34,16 @@ class ILinkRepository(ABC):
     @abstractmethod
     async def get_unread_links(self, user_id: int, limit: int = 10) -> list[Link]: ...
 
+    @abstractmethod
+    async def get_memos_by_period(
+        self,
+        user_id: int,
+        start: datetime,
+        end: datetime,
+        query: str | None = None,
+        limit: int = 10,
+    ) -> list[Link]: ...
+
     # --- Phase 3: Proactive Agent ---
 
     @abstractmethod

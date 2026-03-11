@@ -17,6 +17,7 @@ def mock_dependencies():
         "agent": agent,
         "search_uc": AsyncMock(),
         "save_memo_uc": AsyncMock(),
+        "recall_memo_uc": AsyncMock(),
         "telegram": AsyncMock(),
         "user_repo": AsyncMock(),
         "auth_service": MagicMock(),
@@ -121,6 +122,97 @@ async def test_intent_ask_dispatch(router_service, mock_dependencies):
     await router_service.route(123, "ask me something")
 
     assert mock_dependencies["agent"].answer.called
+
+
+@pytest.mark.asyncio
+async def test_intent_memo_recall_dispatch(router_service, mock_dependencies):
+    """Test Intent.MEMO_RECALL dispatch with time filter."""
+    mock_dependencies["intent_classifier"].classify.return_value = ClassifierOutput(
+        intent=Intent.MEMO_RECALL,
+        query=None,
+        time_filter="yesterday",
+    )
+
+    await router_service.route(123, "어제 작성한 메모 가져와")
+
+    mock_dependencies["recall_memo_uc"].execute.assert_called_once_with(
+        telegram_id=123,
+        query="",
+        time_filter="yesterday",
+    )
+
+
+@pytest.mark.asyncio
+async def test_intent_memo_recall_empty_query_stays_empty(router_service, mock_dependencies):
+    mock_dependencies["intent_classifier"].classify.return_value = ClassifierOutput(
+        intent=Intent.MEMO_RECALL,
+        query="",
+        time_filter="recent",
+    )
+    mock_dependencies["recall_memo_uc"].execute.return_value = []
+
+    await router_service.route(123, "어제 메모 가져와")
+
+    mock_dependencies["recall_memo_uc"].execute.assert_called_once_with(
+        telegram_id=123,
+        query="",
+        time_filter="recent",
+    )
+
+
+@pytest.mark.asyncio
+async def test_memo_recall_sends_formatted_results(router_service, mock_dependencies):
+    mock_dependencies["intent_classifier"].classify.return_value = ClassifierOutput(
+        intent=Intent.MEMO_RECALL,
+        query="RAG",
+        time_filter="yesterday",
+    )
+    mock_dependencies["recall_memo_uc"].execute.return_value = [
+        {
+            "memo": "어제 정리한 RAG 메모",
+            "created_at": "2026-03-10T09:00:00+00:00",
+        }
+    ]
+
+    await router_service.route(123, "어제 RAG 메모 보여줘")
+
+    last_call = mock_dependencies["telegram"].send_message.call_args_list[-1][0]
+    assert last_call[0] == 123
+    assert "메모 조회 결과" in last_call[1]
+    assert "어제 정리한 RAG 메모" in last_call[1]
+    assert "2026-03-10" in last_call[1]
+
+
+@pytest.mark.asyncio
+async def test_memo_recall_empty_result_sends_not_found(router_service, mock_dependencies):
+    mock_dependencies["intent_classifier"].classify.return_value = ClassifierOutput(
+        intent=Intent.MEMO_RECALL,
+        query=None,
+        time_filter="today",
+    )
+    mock_dependencies["recall_memo_uc"].execute.return_value = []
+
+    await router_service.route(123, "오늘 메모 보여줘")
+
+    last_call = mock_dependencies["telegram"].send_message.call_args_list[-1][0]
+    assert "찾지 못했어요" in last_call[1]
+    assert "today" in last_call[1]
+
+
+@pytest.mark.asyncio
+async def test_memo_recall_invalid_time_filter_falls_back_to_recent(router_service, mock_dependencies):
+    mock_dependencies["intent_classifier"].classify.return_value = ClassifierOutput(
+        intent=Intent.MEMO_RECALL,
+        query=None,
+        time_filter="<b>bad</b>",
+    )
+    mock_dependencies["recall_memo_uc"].execute.return_value = []
+
+    await router_service.route(123, "메모 보여줘")
+
+    last_call = mock_dependencies["telegram"].send_message.call_args_list[-1][0]
+    assert "recent" in last_call[1]
+    assert "<b>bad</b>" not in last_call[1]
 
 
 @pytest.mark.asyncio
@@ -252,6 +344,7 @@ async def test_handler_map_extensibility(router_service):
     assert Intent.SEARCH in router_service._intent_handlers
     assert Intent.MEMO in router_service._intent_handlers
     assert Intent.ASK in router_service._intent_handlers
+    assert Intent.MEMO_RECALL in router_service._intent_handlers
     assert Intent.START in router_service._intent_handlers
     assert Intent.HELP in router_service._intent_handlers
 
@@ -259,6 +352,7 @@ async def test_handler_map_extensibility(router_service):
     assert router_service._intent_handlers[Intent.SEARCH] == router_service._process_search
     assert router_service._intent_handlers[Intent.MEMO] == router_service._process_memo
     assert router_service._intent_handlers[Intent.ASK] == router_service._process_ask
+    assert router_service._intent_handlers[Intent.MEMO_RECALL] == router_service._process_memo_recall
     assert router_service._intent_handlers[Intent.START] == router_service._handle_start
     assert router_service._intent_handlers[Intent.HELP] == router_service._handle_help
 
