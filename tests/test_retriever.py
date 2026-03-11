@@ -140,6 +140,51 @@ async def test_keywords_null_handled():
 
 
 @pytest.mark.asyncio
+async def test_same_link_deduped():
+    """같은 link_id의 여러 chunk가 결과에 1개만 남아야 한다."""
+    retriever, chunk_repo = make_retriever()
+    chunk_repo.search_similar.return_value = [
+        _make_result(1, "하나증권 공고", ["하나증권", "채용공고"], dense_score=0.80),
+        _make_result(1, "하나증권 공고", ["하나증권", "채용공고"], dense_score=0.75),
+        _make_result(2, "파이썬 로깅", ["Python", "로깅"], dense_score=0.60),
+    ]
+
+    results = await retriever.retrieve(user_id=111, query="하나증권", top_k=5)
+
+    link_ids = [r["link_id"] for r in results]
+    assert link_ids.count(1) == 1, "link_id=1은 1번만 나와야 함"
+    assert len(results) == 2
+
+
+@pytest.mark.asyncio
+async def test_spaced_query_matches_compound_keyword():
+    """'하나 증권' (띄어쓰기) 쿼리가 '하나증권' (붙여쓰기) 키워드와 매칭되어야 한다."""
+    retriever, chunk_repo = make_retriever()
+    chunk_repo.search_similar.return_value = [
+        _make_result(1, "하나증권 공고", ["하나증권", "채용공고"], dense_score=0.50),
+        _make_result(2, "무관한 문서", ["Python", "AI"], dense_score=0.70),
+    ]
+
+    results = await retriever.retrieve(user_id=111, query="하나 증권 공고", top_k=5)
+
+    assert results[0]["link_id"] == 1, "하나증권 키워드 substring 매칭으로 1위여야 함"
+
+
+@pytest.mark.asyncio
+async def test_substring_match_partial_keyword():
+    """query token '공고'가 keyword '채용공고'의 부분 문자열로 매칭되어야 한다."""
+    retriever, chunk_repo = make_retriever()
+    chunk_repo.search_similar.return_value = [
+        _make_result(1, "채용 정보", ["채용공고", "신입사원"], dense_score=0.50),
+        _make_result(2, "무관 문서", ["Python", "로깅"], dense_score=0.65),
+    ]
+
+    results = await retriever.retrieve(user_id=111, query="공고", top_k=5)
+
+    assert results[0]["link_id"] == 1, "공고 substring 매칭으로 채용공고 링크가 1위여야 함"
+
+
+@pytest.mark.asyncio
 async def test_recall_k_is_wider_than_top_k():
     """DB 조회 시 recall_k가 top_k보다 충분히 크게 호출되어야 한다."""
     retriever, chunk_repo = make_retriever()
