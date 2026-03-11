@@ -5,6 +5,7 @@ from app.application.ports.knowledge_agent_port import KnowledgeAgentPort
 from app.application.ports.intent_router_port import IntentRouterPort
 from app.application.ports.telegram_port import TelegramPort
 from app.application.usecases.save_memo_usecase import SaveMemoUseCase
+from app.application.usecases.recall_memo_usecase import RecallMemoUseCase
 from app.application.usecases.search_usecase import SearchUseCase
 from app.application.services.auth_service import AuthService
 from app.domain.entities.intent import Intent
@@ -28,6 +29,7 @@ class MessageRouterService:
         agent: KnowledgeAgentPort,  # Port: 지식 처리 실행
         search_uc: SearchUseCase,
         save_memo_uc: SaveMemoUseCase,
+        recall_memo_uc: RecallMemoUseCase,
         telegram: TelegramPort,
         user_repo: IUserRepository,
         auth_service: AuthService,
@@ -36,6 +38,7 @@ class MessageRouterService:
         self._agent = agent  # Port 의존
         self._search_uc = search_uc
         self._save_memo_uc = save_memo_uc
+        self._recall_memo_uc = recall_memo_uc
         self._telegram = telegram
         self._user_repo = user_repo
         self._auth_service = auth_service
@@ -55,6 +58,7 @@ class MessageRouterService:
         self._intent_handlers = {
             Intent.SEARCH: self._process_search,
             Intent.MEMO: self._process_memo,
+            Intent.MEMO_RECALL: self._process_memo_recall,
             Intent.ASK: self._process_ask,
             Intent.START: self._handle_start,
             Intent.HELP: self._handle_help,
@@ -120,6 +124,8 @@ class MessageRouterService:
         try:
             routed = await self._intent_classifier.classify(text)
             effective_query = routed.query or text
+            if routed.intent == Intent.MEMO_RECALL and routed.query is None:
+                effective_query = ""
         except Exception as e:
             logger.exception(f"Error classifying intent: {e}")
             await self._telegram.send_message(
@@ -131,7 +137,10 @@ class MessageRouterService:
         try:
             handler = self._intent_handlers.get(routed.intent)
             if handler:
-                await handler(telegram_id, effective_query)
+                if routed.intent == Intent.MEMO_RECALL:
+                    await handler(telegram_id, effective_query, routed.time_filter)
+                else:
+                    await handler(telegram_id, effective_query)
             else:  # UNKNOWN intent
                 await self._telegram.send_message(
                     telegram_id,
@@ -201,6 +210,22 @@ class MessageRouterService:
             telegram_id,
             payload,
             error_msg="검색 중 오류가 발생했습니다."
+        )
+
+    async def _process_memo_recall(
+        self,
+        telegram_id: int,
+        payload: str,
+        time_filter: str | None = None,
+    ) -> None:
+        """메모 회상 조회 처리."""
+        await self._run_safe(
+            telegram_id,
+            self._execute_recall_memo_and_send_results,
+            telegram_id,
+            payload,
+            time_filter,
+            error_msg="메모 조회 중 오류가 발생했습니다.",
         )
 
     async def _handle_start(
@@ -275,6 +300,35 @@ class MessageRouterService:
         answer = await self._agent.answer(telegram_id, query)
         await self._telegram.send_message(telegram_id, html.escape(answer))
 
+    async def _execute_recall_memo_and_send_results(
+        self,
+        telegram_id: int,
+        query: str,
+        time_filter: str | None = None,
+    ) -> None:
+        await self._telegram.send_message(telegram_id, "🗂️ 메모를 찾는 중입니다...")
+        results = await self._recall_memo_uc.execute(
+            telegram_id=telegram_id,
+            query=query,
+            time_filter=time_filter,
+        )
+        filter_text = time_filter or "recent"
+        if not results:
+            await self._telegram.send_message(
+                telegram_id,
+                f"🗂️ 메모를 찾지 못했어요. (기간: {filter_text})",
+            )
+            return
+
+        lines = [f"🗂️ <b>메모 조회 결과</b> (기간: {filter_text})\n"]
+        for i, r in enumerate(results, 1):
+            memo = html.escape((r.get("memo") or "").strip()[:120] or "내용 없음")
+            created_at = (r.get("created_at") or "")[:10]
+            date_text = f" · {created_at}" if created_at else ""
+            lines.append(f"{i}. {memo}{date_text}")
+
+        await self._telegram.send_message(telegram_id, "\n".join(lines))
+
     @staticmethod
     def _is_likely_ask_text(text: str) -> bool:
         normalized = text.strip().lower()
@@ -290,6 +344,11 @@ class MessageRouterService:
             "find",
             "memo",
             "메모",
+            "어제",
+            "오늘",
+            "지난",
+            "최근",
+            "recall",
             "기록",
             "저장",
             "usage",

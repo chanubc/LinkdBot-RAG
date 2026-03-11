@@ -6,6 +6,7 @@ class Intent(str, Enum):
 
     SEARCH = "search"
     MEMO = "memo"
+    MEMO_RECALL = "memo_recall"
     ASK = "ask"
     START = "start"
     HELP = "help"
