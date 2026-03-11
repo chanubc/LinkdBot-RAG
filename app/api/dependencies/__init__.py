@@ -8,6 +8,7 @@ from app.api.dependencies.auth_di import (
 from app.api.dependencies.link_di import (
     get_chunk_repository,
     get_link_repository,
+    get_mark_read_usecase,
     get_openai_client,
     get_save_link_usecase,
     get_save_memo_usecase,
@@ -25,6 +26,7 @@ __all__ = [
     "get_scraper_client",
     "get_link_repository",
     "get_chunk_repository",
+    "get_mark_read_usecase",
     "get_save_link_usecase",
     "get_save_memo_usecase",
     "get_search_usecase",

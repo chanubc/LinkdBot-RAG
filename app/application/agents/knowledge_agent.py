@@ -2,8 +2,8 @@ import json
 
 from app.domain.repositories.i_link_repository import ILinkRepository
 from app.application.models.llm import LLMMessage
-from app.application.ports.telegram_port import TelegramPort
 from app.application.ports.chat_completion_port import ChatCompletionPort
+from app.application.ports.knowledge_agent_port import KnowledgeAgentPort
 from app.infrastructure.rag.reranker import SimpleReranker
 from app.infrastructure.rag.retriever import HybridRetriever
 from app.core.llm_models import LLM_AGENT
@@ -12,7 +12,7 @@ from app.core.prompts.knowledge_agent import KNOWLEDGE_AGENT_PROMPT, TOOLS
 from app.core.logger import logger
 
 
-class KnowledgeAgent:
+class KnowledgeAgent(KnowledgeAgentPort):
     """OpenAI Function Calling 기반 AI Agent."""
 
     def __init__(
@@ -20,17 +20,15 @@ class KnowledgeAgent:
         retriever: HybridRetriever,
         reranker: SimpleReranker,
         link_repo: ILinkRepository,
-        telegram: TelegramPort,
         llm: ChatCompletionPort,
     ) -> None:
         self._retriever = retriever
         self._reranker = reranker
         self._link_repo = link_repo
-        self._telegram = telegram
         self._llm = llm
 
-    async def handle(self, telegram_id: int, query: str) -> None:
-        """Function Calling loop: intent → tool → synthesis → send."""
+    async def answer(self, telegram_id: int, query: str) -> str:
+        """Function Calling loop: intent → tool → synthesis → answer text."""
         try:
             messages: list[LLMMessage] = [
                 LLMMessage(role="system", content=KNOWLEDGE_AGENT_PROMPT),
@@ -46,8 +44,7 @@ class KnowledgeAgent:
 
             if not response.tool_calls:
                 logger.warning("tool_choice=required but no tool_calls returned (telegram_id=%d)", telegram_id)
-                await self._telegram.send_message(telegram_id, "답변을 생성할 수 없습니다.")
-                return
+                return "답변을 생성할 수 없습니다."
 
             # Add assistant response to messages
             messages.append(response.message)
@@ -71,14 +68,11 @@ class KnowledgeAgent:
                 messages=messages,
                 model=LLM_AGENT,
             )
-            answer = final_response.message.content or "답변을 생성할 수 없습니다."
-            await self._telegram.send_message(telegram_id, answer)
+            return final_response.message.content or "답변을 생성할 수 없습니다."
 
         except Exception as exc:
-            logger.exception(f"KnowledgeAgent.handle error (telegram_id={telegram_id})")
-            await self._telegram.send_message(
-                telegram_id, f"❌ 처리 실패: {str(exc)[:200]}"
-            )
+            logger.exception(f"KnowledgeAgent.answer error (telegram_id={telegram_id})")
+            return "❌ 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
 
     async def _execute_tool(
         self, telegram_id: int, tool_name: str, args: dict
