@@ -1,7 +1,5 @@
 import re
 
-from fastapi import BackgroundTasks
-
 from app.application.ports.knowledge_agent_port import KnowledgeAgentPort
 from app.application.ports.intent_router_port import IntentRouterPort
 from app.application.ports.telegram_port import TelegramPort
@@ -64,7 +62,6 @@ class MessageRouterService:
     async def _run_safe(
         self,
         telegram_id: int,
-        background_tasks: BackgroundTasks | None,
         coro,
         *args,
         error_msg: str = "처리 중 오류가 발생했습니다."
@@ -73,7 +70,6 @@ class MessageRouterService:
 
         Args:
             telegram_id: Telegram user ID
-            background_tasks: FastAPI BackgroundTasks instance (optional)
             coro: Coroutine function to execute
             *args: Arguments to pass to coroutine
             error_msg: Error message to send on failure
@@ -87,17 +83,12 @@ class MessageRouterService:
                 logger.exception(f"Error in {coro.__name__}: {e}")
                 await self._telegram.send_message(telegram_id, error_msg)
 
-        if background_tasks:
-            background_tasks.add_task(safe_wrapper)
-        else:
-            await safe_wrapper()
+        await safe_wrapper()
 
-    async def route(
-        self, telegram_id: int, text: str, background_tasks: BackgroundTasks | None = None
-    ) -> None:
+    async def route(self, telegram_id: int, text: str) -> None:
         """메시지를 적절한 핸들러로 라우팅.
 
-        Long-running 작업은 background_tasks를 통해 비동기 실행됨.
+        Long-running 작업은 상위 웹훅 핸들러에서 background scheduling 처리.
         """
         if not text.strip():
             return
@@ -110,7 +101,7 @@ class MessageRouterService:
 
             handler = self._slash_handlers.get(command)
             if handler:
-                await handler(telegram_id, payload, background_tasks)
+                await handler(telegram_id, payload)
             else:
                 # Unknown command feedback
                 await self._telegram.send_message(
@@ -121,8 +112,7 @@ class MessageRouterService:
 
         # 일반 텍스트 → 즉시 1차 응답 후 Intent 분류 + 처리
         if self._is_likely_ask_text(text):
-            await self._telegram.send_message(telegram_id, "🤔 분석 중입니다...")
-            await self._process_ask(telegram_id, text, background_tasks)
+            await self._process_ask(telegram_id, text)
             return
 
         await self._telegram.send_message(telegram_id, "🤔 분석 중입니다...")
@@ -140,7 +130,7 @@ class MessageRouterService:
         try:
             handler = self._intent_handlers.get(routed.intent)
             if handler:
-                await handler(telegram_id, effective_query, background_tasks)
+                await handler(telegram_id, effective_query)
             else:  # UNKNOWN intent
                 await self._telegram.send_message(
                     telegram_id,
@@ -151,7 +141,7 @@ class MessageRouterService:
             await self._telegram.send_message(telegram_id, "처리 중 오류가 발생했습니다.")
 
     async def _process_memo(
-        self, telegram_id: int, payload: str, background_tasks: BackgroundTasks | None
+        self, telegram_id: int, payload: str
     ) -> None:
         """메모 저장 처리 (비동기 피드백 포함)."""
         if not payload:
@@ -165,7 +155,6 @@ class MessageRouterService:
         # 에러 처리는 _run_safe에서 통합 관리
         await self._run_safe(
             telegram_id,
-            background_tasks,
             self._save_memo_uc.execute,
             telegram_id,
             payload,
@@ -173,7 +162,7 @@ class MessageRouterService:
         )
 
     async def _process_ask(
-        self, telegram_id: int, payload: str, background_tasks: BackgroundTasks | None
+        self, telegram_id: int, payload: str
     ) -> None:
         """질문/에이전트 실행 처리."""
         if not payload:
@@ -183,18 +172,17 @@ class MessageRouterService:
             )
             return
 
-        # 에러 처리는 _run_safe에서 통합 관리
+        await self._telegram.send_message(telegram_id, "🤖 답변을 생성하는 중입니다...")
         await self._run_safe(
             telegram_id,
-            background_tasks,
-            self._agent.run,
+            self._answer_and_send,
             telegram_id,
             payload,
             error_msg="질문 처리 중 오류가 발생했습니다."
         )
 
     async def _process_search(
-        self, telegram_id: int, payload: str, background_tasks: BackgroundTasks | None = None
+        self, telegram_id: int, payload: str
     ) -> None:
         """검색 처리 (비동기 결과 반환)."""
         if not payload:
@@ -208,7 +196,6 @@ class MessageRouterService:
         # 에러 처리는 _run_safe에서 통합 관리
         await self._run_safe(
             telegram_id,
-            background_tasks,
             self._execute_search_and_send_results,
             telegram_id,
             payload,
@@ -216,28 +203,26 @@ class MessageRouterService:
         )
 
     async def _handle_start(
-        self, telegram_id: int, payload: str = "", background_tasks: BackgroundTasks | None = None
+        self, telegram_id: int, payload: str = ""
     ) -> None:
         """시작 명령어 처리 (비동기 피드백)."""
         # 웹훅은 즉시 응답, 실제 처리는 background
         # 에러 처리는 _run_safe에서 통합 관리
         await self._run_safe(
             telegram_id,
-            background_tasks,
             self._send_start_message,
             telegram_id,
             error_msg="/start 처리 중 오류가 발생했습니다."
         )
 
     async def _handle_help(
-        self, telegram_id: int, payload: str = "", background_tasks: BackgroundTasks | None = None
+        self, telegram_id: int, payload: str = ""
     ) -> None:
         """도움말 명령어 처리 (비동기 피드백)."""
         # 웹훅은 즉시 응답, 도움말 메시지는 background로 전송
         # 에러 처리는 _run_safe에서 통합 관리
         await self._run_safe(
             telegram_id,
-            background_tasks,
             self._telegram.send_help_message,
             telegram_id,
             error_msg="/help 처리 중 오류가 발생했습니다."
@@ -257,12 +242,11 @@ class MessageRouterService:
             await self._telegram.send_notion_connect_button(telegram_id, login_url)
 
     async def _handle_dashboard(
-        self, telegram_id: int, payload: str = "", background_tasks: BackgroundTasks | None = None
+        self, telegram_id: int, payload: str = ""
     ) -> None:
         """개인 대시보드 링크 발송 (JWT stateless — StateStore 불필요)."""
         await self._run_safe(
             telegram_id,
-            background_tasks,
             self._send_dashboard_message,
             telegram_id,
             error_msg="대시보드 링크 생성 중 오류가 발생했습니다.",
@@ -284,6 +268,11 @@ class MessageRouterService:
         await self._telegram.send_message(telegram_id, "🔍 검색 중입니다...")
         results = await self._search_uc.execute(telegram_id, query)
         await self._telegram.send_search_results(telegram_id, query, results)
+
+    async def _answer_and_send(self, telegram_id: int, query: str) -> None:
+        """질문 응답 생성 후 전송."""
+        answer = await self._agent.answer(telegram_id, query)
+        await self._telegram.send_message(telegram_id, answer)
 
     @staticmethod
     def _is_likely_ask_text(text: str) -> bool:

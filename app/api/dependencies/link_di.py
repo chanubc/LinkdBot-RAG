@@ -7,6 +7,7 @@ from app.api.dependencies.auth_di import (
     get_user_repository,
 )
 from app.application.usecases.save_link_usecase import SaveLinkUseCase
+from app.application.usecases.mark_read_usecase import MarkReadUseCase
 from app.application.usecases.save_memo_usecase import SaveMemoUseCase
 from app.application.ports.notion_port import NotionPort
 from app.application.ports.ai_analysis_port import AIAnalysisPort
@@ -64,3 +65,10 @@ def get_save_memo_usecase(
     notion: NotionPort = Depends(get_notion_client),
 ) -> SaveMemoUseCase:
     return SaveMemoUseCase(db, user_repo, link_repo, chunk_repo, openai, telegram, notion)
+
+
+def get_mark_read_usecase(
+    db: AsyncSession = Depends(get_db),
+    link_repo: LinkRepository = Depends(get_link_repository),
+) -> MarkReadUseCase:
+    return MarkReadUseCase(db, link_repo)

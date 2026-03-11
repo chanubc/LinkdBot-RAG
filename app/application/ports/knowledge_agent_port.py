@@ -2,11 +2,11 @@ from abc import ABC, abstractmethod
 
 
 class KnowledgeAgentPort(ABC):
-    """Port: knowledge processing execution (search, answer, tool dispatch)."""
+    """Port: knowledge-answer generation."""
 
     @abstractmethod
-    async def run(self, telegram_id: int, query: str) -> None:
-        """Run the agent for a user query and send response via Telegram.
+    async def answer(self, telegram_id: int, query: str) -> str:
+        """Generate an answer for a user query.
 
         Args:
             telegram_id: User's Telegram ID
