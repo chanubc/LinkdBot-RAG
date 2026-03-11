@@ -11,16 +11,7 @@ _MIN_RECALL_K = 30
 _MAX_RECALL_K = 100
 
 _MIN_RESULT_SIMILARITY = 0.30
-_RELATIVE_RESULT_RATIO = 0.50
-
-_HIRING_INTENT_TERMS = frozenset({
-    "공고", "채용", "채용공고", "공개채용", "공채", "신입", "신입사원", "인턴", "모집", "취업",
-})
-_HIRING_RESULT_TERMS = frozenset({
-    "채용공고", "공개채용", "공채", "신입사원", "인턴", "모집",
-})
-_HIRING_CATEGORY_BOOST = 0.05
-_HIRING_TERM_BOOST = 0.10
+_RELATIVE_RESULT_RATIO = 0.60
 
 
 class HybridRetriever:
@@ -33,7 +24,7 @@ class HybridRetriever:
     async def retrieve(self, user_id: int, query: str, top_k: int = 10) -> list[dict]:
         """Dense + LLM Keyword Overlap 하이브리드 검색.
 
-        DB는 recall_k로 넓게 조회 후 keyword rescoring → intent boost → link_id dedupe
+        DB는 recall_k로 넓게 조회 후 keyword rescoring → link_id dedupe
         → score cutoff → 최종 top_k 반환.
         """
         [embedding] = await self._openai.embed([query])
@@ -41,10 +32,7 @@ class HybridRetriever:
         results = await self._chunk_repo.search_similar(user_id, embedding, recall_k, query_text=query)
         rescored = _rescore_with_keywords(results, query)
         deduped = _dedupe_by_link(rescored)
-        if _has_hiring_intent(query):
-            boosted = _apply_intent_boosts(deduped, query)
-            return _apply_score_cutoff(boosted)[:top_k]
-        return deduped[:top_k]
+        return _apply_score_cutoff(deduped)[:top_k]
 
 
 def _build_query_variants(query: str) -> list[str]:
@@ -146,41 +134,12 @@ def _dedupe_by_link(results: list[dict]) -> list[dict]:
     return sorted(best_by_link.values(), key=lambda x: x.get("similarity", 0), reverse=True)
 
 
-def _apply_intent_boosts(results: list[dict], query: str) -> list[dict]:
-    """채용 의도 질의에서 Career/채용성 키워드 결과에 소폭 가산점 적용."""
-    boosted = []
-    for r in results:
-        bonus = 0.0
-        category = (r.get("category") or "").lower()
-        if category == "career":
-            bonus += _HIRING_CATEGORY_BOOST
-
-        title = (r.get("title") or "").lower()
-        hiring_match = any(term in title for term in _HIRING_RESULT_TERMS)
-
-        raw_keywords = r.get("keywords")
-        if raw_keywords and not hiring_match:
-            try:
-                parsed = json.loads(raw_keywords)
-                if isinstance(parsed, list):
-                    keywords = {k.lower() for k in parsed if isinstance(k, str) and k.strip()}
-                    hiring_match = any(
-                        any(_token_matches(term, kw) for kw in keywords)
-                        for term in _HIRING_RESULT_TERMS
-                    )
-            except (json.JSONDecodeError, TypeError, AttributeError):
-                pass
-
-        if hiring_match:
-            bonus += _HIRING_TERM_BOOST
-
-        boosted.append({**r, "similarity": round(r.get("similarity", 0) + bonus, 4)})
-
-    return sorted(boosted, key=lambda x: x.get("similarity", 0), reverse=True)
-
-
 def _apply_score_cutoff(results: list[dict]) -> list[dict]:
-    """상위 결과와 점수 차이가 큰 tail noise를 제거."""
+    """상위 결과와 점수 차이가 큰 tail noise를 제거.
+
+    similarity < 0.30 또는 top1 * 0.60 미만이면 제외.
+    최소 1개는 항상 유지.
+    """
     if not results:
         return results
 
@@ -192,13 +151,3 @@ def _apply_score_cutoff(results: list[dict]) -> list[dict]:
         if r.get("similarity", 0) >= threshold:
             kept.append(r)
     return kept
-
-
-def _has_hiring_intent(query: str) -> bool:
-    query_tokens = {
-        token.lower()
-        for variant in _build_query_variants(query)
-        for token in variant.split()
-        if token
-    }
-    return bool(_HIRING_INTENT_TERMS & query_tokens)

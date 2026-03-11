@@ -146,7 +146,7 @@ async def test_same_link_deduped():
     chunk_repo.search_similar.return_value = [
         _make_result(1, "하나증권 공고", ["하나증권", "채용공고"], dense_score=0.80),
         _make_result(1, "하나증권 공고", ["하나증권", "채용공고"], dense_score=0.75),
-        _make_result(2, "파이썬 로깅", ["Python", "로깅"], dense_score=0.60),
+        _make_result(2, "파이썬 로깅", ["Python", "로깅"], dense_score=0.80),
     ]
 
     results = await retriever.retrieve(user_id=111, query="하나증권", top_k=5)
@@ -184,25 +184,6 @@ async def test_substring_match_partial_keyword():
     assert results[0]["link_id"] == 1, "공고 substring 매칭으로 채용공고 링크가 1위여야 함"
 
 
-@pytest.mark.asyncio
-async def test_hiring_intent_boost_promotes_career_result():
-    """채용 의도 질의면 Career/채용성 결과에 가산점이 붙어야 한다."""
-    retriever, chunk_repo = make_retriever()
-    chunk_repo.search_similar.return_value = [
-        {
-            **_make_result(1, "하나증권 2026 신입사원 공개채용", ["하나증권", "채용공고"], dense_score=0.50),
-            "category": "Career",
-        },
-        {
-            **_make_result(2, "하나증권 AI 직무 분석", ["하나증권", "AI직무"], dense_score=0.56),
-            "category": "AI",
-        },
-    ]
-
-    results = await retriever.retrieve(user_id=111, query="하나증권 공고", top_k=5)
-
-    assert results[0]["link_id"] == 1, "채용 의도 질의에서는 Career 결과가 우선되어야 함"
-
 
 @pytest.mark.asyncio
 async def test_low_similarity_tail_is_filtered_out():
@@ -214,7 +195,7 @@ async def test_low_similarity_tail_is_filtered_out():
             "category": "Career",
         },
         {
-            **_make_result(2, "하나증권 AI 직무 분석", ["하나증권", "AI직무"], dense_score=0.41),
+            **_make_result(2, "하나증권 AI 직무 분석", ["하나증권", "AI직무"], dense_score=0.50),
             "category": "AI",
         },
         {
