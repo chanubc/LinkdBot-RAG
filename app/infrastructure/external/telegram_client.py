@@ -3,6 +3,7 @@ import html
 import httpx
 
 from app.core.config import settings
+from app.domain.entities.knowledge_source import KnowledgeSource
 from app.application.ports.telegram_port import TelegramPort
 
 from app.core.logger import logger
@@ -13,58 +14,51 @@ class TelegramRepository(TelegramPort):
     def _base(self) -> str:
         return f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}"
 
-    async def send_message(self, chat_id: int, text: str) -> None:
+    async def _post_message(self, payload: dict) -> None:
         async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                f"{self._base}/sendMessage",
-                json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"},
-            )
+            resp = await client.post(f"{self._base}/sendMessage", json=payload)
             if not resp.is_success:
                 logger.error(
-                    f"send_message failed {resp.status_code}: {resp.text} | text={text[:200]!r}"
+                    "sendMessage failed %s: %s | text=%r",
+                    resp.status_code,
+                    resp.text,
+                    str(payload.get("text", ""))[:200],
                 )
 
+    async def send_message(self, chat_id: int, text: str) -> None:
+        await self._post_message({"chat_id": chat_id, "text": text, "parse_mode": "HTML"})
+
     async def send_notion_connect_button(self, chat_id: int, login_url: str) -> None:
-        """Notion 연동 인라인 버튼 전송 (도움말 버튼 포함)."""
-        async with httpx.AsyncClient() as client:
-            await client.post(
-                f"{self._base}/sendMessage",
-                json={
-                    "chat_id": chat_id,
-                    "text": (
-                        "👋 안녕하세요! <b>LinkdBot</b>입니다.\n\n"
-                        "링크를 저장하고 Notion과 동기화하려면\n"
-                        "아래 버튼을 눌러 Notion 계정을 연동해주세요.\n\n"
-                        "사용법이 궁금하다면 <b>도움말</b> 버튼을 눌러주세요."
-                    ),
-                    "parse_mode": "HTML",
-                    "reply_markup": {
-                        "inline_keyboard": [[
-                            {"text": "📖 도움말", "callback_data": "help"},
-                            {"text": "🔗 Notion 연동하기", "url": login_url},
-                        ]]
-                    },
+        await self._post_message(
+            {
+                "chat_id": chat_id,
+                "text": (
+                    "👋 안녕하세요! <b>LinkdBot</b>입니다.\n\n"
+                    "링크를 저장하고 Notion과 동기화하려면\n"
+                    "아래 버튼을 눌러 Notion 계정을 연동해주세요.\n\n"
+                    "사용법이 궁금하다면 <b>도움말</b> 버튼을 눌러주세요."
+                ),
+                "parse_mode": "HTML",
+                "reply_markup": {
+                    "inline_keyboard": [[
+                        {"text": "📖 도움말", "callback_data": "help"},
+                        {"text": "🔗 Notion 연동하기", "url": login_url},
+                    ]]
                 },
-            )
+            }
+        )
 
     async def send_link_saved_message(
         self, chat_id: int, text: str, notion_url: str | None = None
     ) -> None:
-        """링크 저장 완료 메시지 전송. notion_url이 있으면 인라인 버튼으로 추가."""
         payload: dict = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
         if notion_url:
             payload["reply_markup"] = {
                 "inline_keyboard": [[{"text": "📓 Notion에서 보기", "url": notion_url}]]
             }
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(f"{self._base}/sendMessage", json=payload)
-            if not resp.is_success:
-                logger.error(
-                    f"send_link_saved_message failed {resp.status_code}: {resp.text} | text={text[:200]!r}"
-                )
+        await self._post_message(payload)
 
     async def answer_callback_query(self, callback_query_id: str) -> None:
-        """콜백 버튼 로딩 스피너 해제."""
         async with httpx.AsyncClient() as client:
             await client.post(
                 f"{self._base}/answerCallbackQuery",
@@ -72,7 +66,6 @@ class TelegramRepository(TelegramPort):
             )
 
     async def send_help_message(self, chat_id: int) -> None:
-        """전체 사용법 안내 메시지 전송."""
         await self.send_message(
             chat_id,
             (
@@ -91,21 +84,23 @@ class TelegramRepository(TelegramPort):
                 "<code>/memo [내용]</code>\n"
                 "예시: <code>/memo 오늘 배운 파이썬 팁 정리</code>\n\n"
                 "<b>4️⃣ 검색</b>\n"
-                "텍스트를 입력하거나 /search를 사용하면 AI로 검색해요\n"
-                "<code>/search [검색어]</code> 또는 바로 입력\n"
-                "예시: <code>/search 머신러닝 논문</code> 또는 <code>머신러닝 논문</code>\n\n"
+                "<code>/search [검색어]</code>\n"
+                "예시: <code>/search 머신러닝 논문</code>\n\n"
                 "<b>5️⃣ AI 질문</b>\n"
-                "저장된 지식 기반으로 AI가 답변해드려요\n"
                 "<code>/ask [질문]</code>\n"
                 "예시: <code>/ask 머신러닝이란?</code>\n\n"
-                "<b>6️⃣ 대시보드</b>\n"
+                "<b>6️⃣ 주간 리포트</b>\n"
+                "<code>/report</code>\n"
+                "텔레그램에서 바로 주간 리포트를 생성해요.\n\n"
+                "<b>7️⃣ 빠른 메뉴</b>\n"
+                "<code>/menu</code> 로 검색/질문/리포트/대시보드 진입점을 바로 열 수 있어요.\n\n"
+                "<b>8️⃣ 대시보드</b>\n"
                 "저장한 링크·트렌드·추천을 웹에서 확인해요\n"
                 "<code>/dashboard</code>"
             ),
         )
 
     async def send_welcome_connected(self, chat_id: int, first_name: str | None = None) -> None:
-        """Notion 이미 연동된 유저에게 사용법 안내 메시지 전송."""
         name = first_name or "사용자"
         await self.send_message(
             chat_id,
@@ -121,12 +116,12 @@ class TelegramRepository(TelegramPort):
         )
 
     async def send_search_results(self, chat_id: int, query: str, results: list[dict]) -> None:
-        """검색 결과 전송."""
         if not results:
-            await self.send_message(chat_id, f"🔍 <b>{query}</b>\n\n저장된 링크 중 관련 내용을 찾지 못했어요.")
+            await self.send_message(chat_id, f"🔍 <b>{html.escape(query)}</b>\n\n저장된 링크 중 관련 내용을 찾지 못했어요.")
             return
 
         lines = [f"🔍 <b>{html.escape(query)}</b> 검색 결과\n"]
+        keyboard: list[list[dict]] = []
         for i, r in enumerate(results, 1):
             title = html.escape(r.get("title") or "제목 없음")
             url = r.get("url")
@@ -137,32 +132,122 @@ class TelegramRepository(TelegramPort):
                 line += f"\n    <a href=\"{escaped_url}\">{escaped_url}</a>"
             lines.append(line)
 
-        await self.send_message(chat_id, "\n".join(lines))
+            link_id = r.get("link_id")
+            if link_id is not None:
+                keyboard.append([
+                    {"text": f"✅ {i}번 읽음 처리", "callback_data": f"mark_read:{link_id}"}
+                ])
+
+        payload: dict = {
+            "chat_id": chat_id,
+            "text": "\n".join(lines),
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True,
+        }
+        if keyboard:
+            payload["reply_markup"] = {"inline_keyboard": keyboard[:10]}
+        await self._post_message(payload)
+
+    async def send_ask_response(
+        self,
+        chat_id: int,
+        answer_text: str,
+        sources: list[KnowledgeSource],
+    ) -> None:
+        safe_answer = html.escape(answer_text)
+        lines = [safe_answer]
+        keyboard: list[list[dict]] = []
+
+        if sources:
+            lines.append("\n<b>출처</b>")
+            for i, source in enumerate(sources[:5], 1):
+                title = html.escape(source.title or f"출처 {i}")
+                if source.url:
+                    escaped_url = html.escape(source.url)
+                    lines.append(f"{i}. <a href=\"{escaped_url}\">{title}</a>")
+                else:
+                    lines.append(f"{i}. {title}")
+                if source.link_id is not None:
+                    keyboard.append([
+                        {"text": f"✅ 출처 {i} 읽음 처리", "callback_data": f"mark_read:{source.link_id}"}
+                    ])
+
+        payload: dict = {
+            "chat_id": chat_id,
+            "text": "\n".join(lines),
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True,
+        }
+        if keyboard:
+            payload["reply_markup"] = {"inline_keyboard": keyboard[:10]}
+        await self._post_message(payload)
+
+    async def send_menu_message(
+        self,
+        chat_id: int,
+        dashboard_url: str,
+        notion_url: str | None,
+        notion_login_url: str | None = None,
+    ) -> None:
+        if notion_url:
+            notion_button = {
+                "text": "📓 Notion DB 열기",
+                "url": notion_url,
+            }
+        else:
+            connect_url = notion_login_url or settings.NOTION_REDIRECT_URI.replace("/callback", "/login")
+            notion_button = {
+                "text": "🔗 Notion 연동하기",
+                "url": connect_url,
+            }
+        await self._post_message(
+            {
+                "chat_id": chat_id,
+                "text": (
+                    "🧭 <b>빠른 메뉴</b>\n\n"
+                    "원하는 작업을 버튼으로 바로 실행하세요.\n"
+                    "읽음 처리는 검색/질문 결과에서만 할 수 있어요."
+                ),
+                "parse_mode": "HTML",
+                "reply_markup": {
+                    "inline_keyboard": [
+                        [
+                            {"text": "🔗 저장 방법", "callback_data": "menu:save"},
+                            {"text": "🔍 검색", "callback_data": "menu:search"},
+                        ],
+                        [
+                            {"text": "🤖 질문", "callback_data": "menu:ask"},
+                            {"text": "📊 주간 리포트", "callback_data": "menu:report"},
+                        ],
+                        [
+                            {"text": "📈 대시보드", "url": dashboard_url},
+                            notion_button,
+                        ],
+                        [
+                            {"text": "📖 도움말", "callback_data": "menu:help"},
+                        ],
+                    ]
+                },
+            }
+        )
 
     async def send_dashboard_button(self, chat_id: int, dashboard_url: str) -> None:
-        """대시보드 접속 인라인 버튼 전송."""
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                f"{self._base}/sendMessage",
-                json={
-                    "chat_id": chat_id,
-                    "text": (
-                        "📊 <b>나의 지식 대시보드</b>\n\n"
-                        "저장한 링크, 관심사 트렌드, 추천 콘텐츠를 확인하세요.\n"
-                        "링크는 <b>7일간</b> 유효합니다."
-                    ),
-                    "parse_mode": "HTML",
-                    "reply_markup": {
-                        "inline_keyboard": [[
-                            {"text": "🔗 대시보드 열기", "url": dashboard_url},
-                        ]]
-                    },
+        await self._post_message(
+            {
+                "chat_id": chat_id,
+                "text": (
+                    "📊 <b>나의 지식 대시보드</b>\n\n"
+                    "저장한 링크, 관심사 트렌드, 추천 콘텐츠를 확인하세요.\n"
+                    "링크는 <b>7일간</b> 유효합니다."
+                ),
+                "parse_mode": "HTML",
+                "reply_markup": {
+                    "inline_keyboard": [[
+                        {"text": "🔗 대시보드 열기", "url": dashboard_url},
+                    ]]
                 },
-            )
-            if not resp.is_success:
-                logger.error(
-                    f"send_dashboard_button failed {resp.status_code}: {resp.text}"
-                )
+            }
+        )
 
     async def set_webhook(self, url: str) -> None:
         async with httpx.AsyncClient() as client:
@@ -178,7 +263,6 @@ class TelegramRepository(TelegramPort):
         text: str,
         link_id: int | None = None,
     ) -> None:
-        """주간 리포트 전송. link_id 있으면 [읽음 처리] 인라인 버튼 포함."""
         payload: dict = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
         if link_id is not None:
             payload["reply_markup"] = {
@@ -191,16 +275,14 @@ class TelegramRepository(TelegramPort):
             resp.raise_for_status()
 
     async def register_commands(self) -> bool:
-        """봇 명령어 자동완성 등록 (setMyCommands).
-
-        사용자가 /를 입력할 때 명령어 목록이 자동으로 표시됩니다.
-        """
         commands = [
             {"command": "start", "description": "봇 시작 및 Notion 연동"},
             {"command": "help", "description": "사용법 안내"},
+            {"command": "menu", "description": "빠른 실행 메뉴"},
             {"command": "memo", "description": "메모와 함께 링크 저장"},
             {"command": "search", "description": "저장된 링크 검색"},
             {"command": "ask", "description": "AI 에이전트에 질문"},
+            {"command": "report", "description": "주간 리포트 실행"},
             {"command": "dashboard", "description": "개인 지식 대시보드 열기"},
         ]
 

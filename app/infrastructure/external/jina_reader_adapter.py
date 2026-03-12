@@ -21,11 +21,11 @@ class JinaReaderAdapter(ScraperPort):
         self._api_key = api_key
         self._fallback = ScraperRepository()
 
-    async def scrape(self, url: str) -> tuple[str, str]:
+    async def scrape(self, url: str) -> tuple[str, str, str]:
         """Jina Reader로 콘텐츠 추출.
 
         Returns:
-            (content, "jina") 성공 시, 실패 시 폴백 ScraperRepository 결과 반환.
+            (content, "jina", "") 성공 시, 실패 시 폴백 ScraperRepository 결과 반환.
         """
         headers = {
             "Accept": "text/markdown",
@@ -41,7 +41,7 @@ class JinaReaderAdapter(ScraperPort):
                 content = resp.text.strip()
                 if not content:
                     raise ValueError("Jina Reader returned empty content")
-                return content, "jina"
+                return content, "jina", ""
         except Exception as exc:
             logger.warning(f"Jina Reader failed for {url} ({exc}), falling back to OG scraper")
             return await self._fallback.scrape(url)

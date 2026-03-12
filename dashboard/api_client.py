@@ -23,18 +23,8 @@ class DashboardAPIClient:
         r.raise_for_status()
         return r.json()
 
-    def _patch(self, path: str) -> dict:
-        r = self._client.patch(f"{self._base}{path}", headers=self._headers)
-        r.raise_for_status()
-        return r.json()
-
     def _delete(self, path: str) -> dict:
         r = self._client.delete(f"{self._base}{path}", headers=self._headers)
-        r.raise_for_status()
-        return r.json()
-
-    def _post(self, path: str) -> dict:
-        r = self._client.post(f"{self._base}{path}", headers=self._headers)
         r.raise_for_status()
         return r.json()
 
@@ -55,6 +45,9 @@ class DashboardAPIClient:
     def get_embeddings(self) -> dict:
         return self._get("/api/v1/dashboard/embeddings/me")
 
+    def get_graph_view(self) -> dict:
+        return self._get("/api/v1/dashboard/graph/me")
+
     def get_links(
         self,
         is_read: bool | None = None,
@@ -70,14 +63,8 @@ class DashboardAPIClient:
             page_size=page_size,
         )
 
-    def mark_link_read(self, link_id: int) -> dict:
-        return self._patch(f"/api/v1/dashboard/links/{link_id}/read")
-
     def delete_link(self, link_id: int) -> dict:
         return self._delete(f"/api/v1/dashboard/links/{link_id}")
-
-    def trigger_report(self) -> dict:
-        return self._post("/api/v1/dashboard/report/trigger/me")
 
     def get_stats(self) -> dict:
         return self._get("/api/v1/dashboard/stats/me")
@@ -94,12 +81,6 @@ class DashboardAPIClient:
     def __exit__(self, *args) -> None:
         self.close()
 
-
-# ---------------------------------------------------------------------------
-# Cached fetch helpers (TTL=30s)
-# 같은 JWT로 30초 이내 재호출은 캐시 반환 → 탭 간 중복 API 호출 방지
-# context manager로 감싸 httpx.Client 소켓 누수 방지
-# ---------------------------------------------------------------------------
 
 @st.cache_data(ttl=30, show_spinner=False)
 def cached_get_stats(jwt_token: str, base_url: str = BASE_URL) -> dict:
@@ -123,3 +104,9 @@ def cached_get_reactivation(jwt_token: str, base_url: str = BASE_URL) -> dict:
 def cached_get_embeddings(jwt_token: str, base_url: str = BASE_URL) -> dict:
     with DashboardAPIClient(jwt_token=jwt_token, base_url=base_url) as c:
         return c.get_embeddings()
+
+
+@st.cache_data(ttl=30, show_spinner=False)
+def cached_get_graph_view(jwt_token: str, base_url: str = BASE_URL) -> dict:
+    with DashboardAPIClient(jwt_token=jwt_token, base_url=base_url) as c:
+        return c.get_graph_view()

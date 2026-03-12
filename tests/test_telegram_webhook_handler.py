@@ -68,11 +68,7 @@ async def test_handle_plain_message_schedules_router_without_nested_background_a
 
 @pytest.mark.asyncio
 async def test_help_callback_routes_to_telegram_help(webhook_handler, webhook_dependencies):
-    callback = {
-        "id": "callback-1",
-        "data": "help",
-        "from": {"id": 123},
-    }
+    callback = {"id": "callback-1", "data": "help", "from": {"id": 123}}
 
     await webhook_handler._handle_callback(callback)
 
@@ -81,15 +77,40 @@ async def test_help_callback_routes_to_telegram_help(webhook_handler, webhook_de
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("callback_data", "expected_text"),
+    [
+        ("menu:save", "저장할 URL"),
+        ("menu:search", "/search"),
+        ("menu:ask", "/ask"),
+    ],
+)
+async def test_menu_callbacks_send_guidance_messages(
+    webhook_handler, webhook_dependencies, callback_data, expected_text
+):
+    callback = {"id": "callback-menu", "data": callback_data, "from": {"id": 123}}
+
+    await webhook_handler._handle_callback(callback)
+
+    webhook_dependencies["telegram"].send_message.assert_awaited_once()
+    assert expected_text in webhook_dependencies["telegram"].send_message.await_args.args[1]
+
+
+@pytest.mark.asyncio
+async def test_menu_report_callback_routes_to_report_command(webhook_handler, webhook_dependencies):
+    callback = {"id": "callback-report", "data": "menu:report", "from": {"id": 123}}
+
+    await webhook_handler._handle_callback(callback)
+
+    webhook_dependencies["message_router"].route.assert_awaited_once_with(123, "/report")
+
+
+@pytest.mark.asyncio
 async def test_mark_read_callback_uses_usecase_and_sends_success_message(
     webhook_handler, webhook_dependencies
 ):
     webhook_dependencies["mark_read_uc"].execute.return_value = True
-    callback = {
-        "id": "callback-2",
-        "data": "mark_read:7",
-        "from": {"id": 123},
-    }
+    callback = {"id": "callback-2", "data": "mark_read:7", "from": {"id": 123}}
 
     await webhook_handler._handle_callback(callback)
 
@@ -102,11 +123,7 @@ async def test_mark_read_callback_sends_not_found_message_when_usecase_returns_f
     webhook_handler, webhook_dependencies
 ):
     webhook_dependencies["mark_read_uc"].execute.return_value = False
-    callback = {
-        "id": "callback-3",
-        "data": "mark_read:8",
-        "from": {"id": 123},
-    }
+    callback = {"id": "callback-3", "data": "mark_read:8", "from": {"id": 123}}
 
     await webhook_handler._handle_callback(callback)
 
@@ -119,11 +136,7 @@ async def test_mark_read_callback_logs_warning_when_usecase_raises(
     webhook_handler, webhook_dependencies
 ):
     webhook_dependencies["mark_read_uc"].execute.side_effect = Exception("db failure")
-    callback = {
-        "id": "callback-4",
-        "data": "mark_read:9",
-        "from": {"id": 123},
-    }
+    callback = {"id": "callback-4", "data": "mark_read:9", "from": {"id": 123}}
 
     with patch("app.application.services.telegram_webhook_handler.logger.warning") as mock_warning:
         await webhook_handler._handle_callback(callback)

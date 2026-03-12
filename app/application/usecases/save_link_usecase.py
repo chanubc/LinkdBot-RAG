@@ -50,7 +50,10 @@ class SaveLinkUseCase:
             await self._telegram.send_message(telegram_id, "🔗 링크를 저장하는 중이에요...")
 
             # 1. Scrape
-            content, content_source = await self._scraper.scrape(url)
+            scraped_content, content_source, og_description = _normalize_scrape_result(
+                await self._scraper.scrape(url)
+            )
+            content = scraped_content
             if memo:
                 content = f"{content}\n\n{memo}"
             await self._telegram.send_message(telegram_id, "✅ 링크 내용 스크랩이 완료되었어요.")
@@ -59,7 +62,7 @@ class SaveLinkUseCase:
             await self._telegram.send_message(telegram_id, "🤖 AI가 내용을 분석하고 있어요...")
             analysis = await self._openai.analyze_content(content)
             title: str = analysis.title or url
-            summary: str = analysis.summary
+            summary: str = og_description or analysis.summary
             category: str = analysis.category
             keywords: list[str] = analysis.keywords
             keywords_json = json.dumps(keywords, ensure_ascii=False)
@@ -114,7 +117,14 @@ class SaveLinkUseCase:
 
             # 6. Notion 저장 (optional, non-fatal)
             notion_url = await self._save_to_notion(
-                telegram_id, title, summary, category, keywords, url, memo
+                telegram_id=telegram_id,
+                title=title,
+                summary=summary,
+                content=content,
+                category=category,
+                keywords=keywords,
+                url=url,
+                memo=memo,
             )
 
             # 7. 완료 알림
@@ -134,31 +144,41 @@ class SaveLinkUseCase:
         telegram_id: int,
         title: str,
         summary: str,
+        content: str,
         category: str,
         keywords: list[str],
         url: str | None,
         memo: str | None,
     ) -> str:
-        """Notion 저장. 성공 시 DB URL 반환, 실패 시 빈 문자열."""
+        """Notion 저장. 성공 시 child page URL 반환, 실패 시 빈 문자열."""
         token = await self._user_repo.get_decrypted_token(telegram_id)
         user = await self._user_repo.get_by_telegram_id(telegram_id)
         if not token or not user or not user.notion_database_id:
             return ""
         try:
-            await self._notion.create_database_entry(
+            return await self._notion.create_database_entry(
                 access_token=token,
                 database_id=user.notion_database_id,
                 title=title,
                 category=category,
                 keywords=keywords,
                 summary=summary,
+                content=content,
                 url=url,
                 memo=memo,
             )
-            db_id = user.notion_database_id.replace("-", "")
-            return f"https://www.notion.so/{db_id}"
         except Exception:
             return ""
+
+
+def _normalize_scrape_result(scrape_result: tuple[str, ...]) -> tuple[str, str, str]:
+    if len(scrape_result) == 3:
+        content, content_source, og_description = scrape_result
+        return content, content_source, og_description
+    if len(scrape_result) == 2:
+        content, content_source = scrape_result
+        return content, content_source, ""
+    raise ValueError("Unexpected scrape result format")
 
 
 def _build_done_message(

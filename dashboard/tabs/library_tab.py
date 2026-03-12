@@ -1,4 +1,4 @@
-"""🗂 보관함 탭 — 카드 리스트 + 상단 액션 영역 (모바일 대응)."""
+"""🗂 보관함 탭 — 카드 리스트 + 삭제 관리."""
 import math
 
 import streamlit as st
@@ -10,17 +10,28 @@ CATEGORIES = ["전체", "AI", "Dev", "Career", "Business", "Science", "Other", "
 
 
 def render(client: DashboardAPIClient) -> None:
-    # ── 필터 (상단 고정) ──────────────────────────────────────────
     col1, col2, col3 = st.columns(3)
     with col1:
-        read_filter = st.selectbox("읽음 여부", ["전체", "미열람", "열람"], index=0,
-                                   label_visibility="collapsed")
+        read_filter = st.selectbox(
+            "읽음 여부",
+            ["전체", "미열람", "열람"],
+            index=0,
+            label_visibility="collapsed",
+        )
     with col2:
-        cat_filter = st.selectbox("카테고리", CATEGORIES, index=0,
-                                  label_visibility="collapsed")
+        cat_filter = st.selectbox(
+            "카테고리",
+            CATEGORIES,
+            index=0,
+            label_visibility="collapsed",
+        )
     with col3:
-        page_size = st.selectbox("개수", [20, 50, 100], index=0,
-                                 label_visibility="collapsed")
+        page_size = st.selectbox(
+            "개수",
+            [20, 50, 100],
+            index=0,
+            label_visibility="collapsed",
+        )
 
     is_read_param: bool | None = None
     if read_filter == "미열람":
@@ -32,7 +43,6 @@ def render(client: DashboardAPIClient) -> None:
     if "lib_page" not in st.session_state:
         st.session_state["lib_page"] = 1
 
-    # ── 데이터 로드 ───────────────────────────────────────────────
     with st.spinner("로딩 중..."):
         try:
             data = client.get_links(
@@ -51,41 +61,25 @@ def render(client: DashboardAPIClient) -> None:
     page = data.get("page", 1)
     total_pages = max(1, math.ceil(total / page_size))
 
+    st.caption("읽음 처리는 텔레그램 `/search`, `/ask` 결과에서만 지원됩니다.")
     st.caption(f"총 {total}개")
 
-    # ── 선택 상태 초기화 ──────────────────────────────────────────
     if "lib_selected" not in st.session_state:
         st.session_state["lib_selected"] = set()
 
-    # ── 선택 항목 액션 (상단 배치) ────────────────────────────────
     selected = st.session_state["lib_selected"]
     if selected:
         st.info(f"**{len(selected)}개 선택됨**")
-        act_col1, act_col2, act_col3 = st.columns(3)
+        act_col1, act_col2 = st.columns(2)
         with act_col1:
-            if st.button("✅ 읽음 처리", use_container_width=True):
-                errors = []
-                for lid in list(selected):
-                    try:
-                        client.mark_link_read(lid)
-                    except Exception as e:
-                        errors.append(str(e))
-                st.session_state["lib_selected"] = set()
-                if errors:
-                    st.error(f"일부 실패: {errors}")
-                else:
-                    st.success(f"{len(selected)}개 읽음 처리 완료")
-                st.rerun()
-        with act_col2:
             if st.button("🗑️ 삭제", use_container_width=True, type="secondary"):
                 st.session_state["lib_confirm_delete"] = True
                 st.rerun()
-        with act_col3:
+        with act_col2:
             if st.button("선택 해제", use_container_width=True):
                 st.session_state["lib_selected"] = set()
                 st.rerun()
 
-    # ── 삭제 확인 ─────────────────────────────────────────────────
     if st.session_state.get("lib_confirm_delete"):
         st.warning(f"정말로 {len(selected)}개를 삭제하시겠습니까?")
         c1, c2 = st.columns(2)
@@ -109,25 +103,14 @@ def render(client: DashboardAPIClient) -> None:
                 st.session_state["lib_confirm_delete"] = False
                 st.rerun()
 
-    # ── 주간 브리핑 강제 실행 ─────────────────────────────────────
-    with st.expander("⚡ 주간 브리핑 강제 실행"):
-        if st.button("지금 실행", type="primary"):
-            try:
-                client.trigger_report()
-                st.success("요청 완료. 잠시 후 텔레그램으로 전송됩니다.")
-            except Exception as e:
-                st.error(f"실패: {e}")
-
     st.divider()
 
-    # ── 카드 리스트 ───────────────────────────────────────────────
     if not items:
         st.info("해당하는 링크가 없습니다.")
     else:
         for link in items:
             _render_link_card(link)
 
-    # ── 페이지네이션 ──────────────────────────────────────────────
     st.divider()
     p1, p2, p3 = st.columns([1, 2, 1])
     with p1:
@@ -154,7 +137,8 @@ def _render_link_card(link: dict) -> None:
 
         with col1:
             checked = st.checkbox(
-                "선택", key=f"lib_chk_{link_id}",
+                "선택",
+                key=f"lib_chk_{link_id}",
                 value=(link_id in selected),
                 label_visibility="collapsed",
             )

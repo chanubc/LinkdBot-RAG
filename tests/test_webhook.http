@@ -255,19 +255,13 @@ GET {{base_url}}/api/v1/dashboard/search/me?q=머신러닝&top_k=5
 Authorization: Bearer {{jwt_token}}
 
 ### ──────────────────────────────────────────
-### /links/{id}/read — 읽음 처리 (IDOR: 본인 링크만)
+### /graph/me — 홈 그래프 뷰 데이터
 ### ──────────────────────────────────────────
-PATCH {{base_url}}/api/v1/dashboard/links/1/read
+GET {{base_url}}/api/v1/dashboard/graph/me
 Authorization: Bearer {{jwt_token}}
 
 ### ──────────────────────────────────────────
 ### /links/{id} — 링크 삭제 (IDOR: 본인 링크만)
 ### ──────────────────────────────────────────
 DELETE {{base_url}}/api/v1/dashboard/links/1
-Authorization: Bearer {{jwt_token}}
-
-### ──────────────────────────────────────────
-### /report/trigger/me — 주간 브리핑 강제 실행
-### ──────────────────────────────────────────
-POST {{base_url}}/api/v1/dashboard/report/trigger/me
 Authorization: Bearer {{jwt_token}}

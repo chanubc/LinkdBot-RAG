@@ -36,15 +36,24 @@ def get_weekly_report_usecase(
 
 
 def build_weekly_report_usecase(session: AsyncSession) -> GenerateWeeklyReportUseCase:
-    """스케줄러에서 직접 호출 (FastAPI Depends 없이) 사용하는 팩토리."""
-    from app.infrastructure.external.telegram_client import TelegramRepository
-    from app.infrastructure.llm.openai_client import OpenAIRepository
+    """스케줄러에서 직접 호출 (FastAPI Depends 없이) 사용하는 팩토리.
+
+    Port/Adapter 패턴을 준수하기 위해 인터페이스 타입의 의존성을 사용합니다.
+    """
+    from app.api.dependencies.auth_di import get_user_repository, get_telegram_client
+    from app.api.dependencies.link_di import get_openai_client, get_link_repository
+
+    user_repo: IUserRepository = get_user_repository()
+    link_repo: ILinkRepository = get_link_repository(session)
+    rec_repo: IRecommendationRepository = get_recommendation_repository(session)
+    openai: AIAnalysisPort = get_openai_client()
+    telegram: TelegramPort = get_telegram_client()
 
     return GenerateWeeklyReportUseCase(
         db=session,
-        user_repo=UserRepository(session),
-        link_repo=LinkRepository(session),
-        rec_repo=RecommendationRepository(session),
-        openai=OpenAIRepository(),
-        telegram=TelegramRepository(),
+        user_repo=user_repo,
+        link_repo=link_repo,
+        rec_repo=rec_repo,
+        openai=openai,
+        telegram=telegram,
     )
