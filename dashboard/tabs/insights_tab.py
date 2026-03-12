@@ -1,6 +1,5 @@
 """🧠 인사이트 탭 — Interest Drift · Reactivation Debugger · Knowledge Universe."""
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
