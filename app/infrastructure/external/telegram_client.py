@@ -3,7 +3,7 @@ import html
 import httpx
 
 from app.core.config import settings
-from app.application.ports.knowledge_agent_port import KnowledgeSource
+from app.domain.entities.knowledge_source import KnowledgeSource
 from app.application.ports.telegram_port import TelegramPort
 
 from app.core.logger import logger
@@ -187,11 +187,19 @@ class TelegramRepository(TelegramPort):
         chat_id: int,
         dashboard_url: str,
         notion_url: str | None,
+        notion_login_url: str | None = None,
     ) -> None:
-        notion_button = {
-            "text": "📓 Notion DB 열기" if notion_url else "🔗 Notion 연동하기",
-            "url": notion_url or settings.NOTION_REDIRECT_URI.replace("/callback", "/login"),
-        }
+        if notion_url:
+            notion_button = {
+                "text": "📓 Notion DB 열기",
+                "url": notion_url,
+            }
+        else:
+            connect_url = notion_login_url or settings.NOTION_REDIRECT_URI.replace("/callback", "/login")
+            notion_button = {
+                "text": "🔗 Notion 연동하기",
+                "url": connect_url,
+            }
         await self._post_message(
             {
                 "chat_id": chat_id,

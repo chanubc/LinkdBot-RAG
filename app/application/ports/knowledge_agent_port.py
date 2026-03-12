@@ -1,12 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
-
-@dataclass(frozen=True, slots=True)
-class KnowledgeSource:
-    title: str
-    url: str | None = None
-    link_id: int | None = None
+from app.domain.entities.knowledge_source import KnowledgeSource
 
 
 @dataclass(frozen=True, slots=True)

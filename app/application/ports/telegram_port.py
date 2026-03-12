@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from app.application.ports.knowledge_agent_port import KnowledgeSource
+from app.domain.entities.knowledge_source import KnowledgeSource
 
 
 class TelegramPort(ABC):
