@@ -125,22 +125,65 @@ def render() -> None:
         st.caption(caption_text)
 
         df_pca = pd.DataFrame(pca_items)
-        fig_pca = px.scatter(
-            df_pca, x="x", y="y",
-            color="category",
-            color_discrete_map=CATEGORY_COLORS,
-            hover_name="title",
-            hover_data={"x": False, "y": False},
-            labels={"category": "카테고리"},
-        )
-        fig_pca.update_traces(marker=dict(size=8, opacity=0.8))
+
+        # KNN 엣지 (k=2 최근접 이웃 연결선)
+        coords = df_pca[["x", "y"]].values
+        n = len(coords)
+        k = min(2, n - 1)
+        edge_x: list = []
+        edge_y: list = []
+        for i in range(n):
+            dists = ((coords - coords[i]) ** 2).sum(axis=1)
+            dists[i] = float("inf")
+            nn_idx = dists.argsort()[:k]
+            for j in nn_idx:
+                edge_x += [coords[i, 0], coords[j, 0], None]
+                edge_y += [coords[i, 1], coords[j, 1], None]
+
+        fig_pca = go.Figure()
+
+        # 엣지 레이어
+        fig_pca.add_trace(go.Scatter(
+            x=edge_x, y=edge_y,
+            mode="lines",
+            line=dict(width=0.5, color="rgba(148,163,184,0.2)"),
+            hoverinfo="none",
+            showlegend=False,
+        ))
+
+        # 카테고리별 노드
+        for cat, grp in df_pca.groupby("category"):
+            color = CATEGORY_COLORS.get(cat, "#64748b")
+            fig_pca.add_trace(go.Scatter(
+                x=grp["x"], y=grp["y"],
+                mode="markers",
+                name=cat,
+                marker=dict(size=8, color=color, opacity=0.85,
+                            line=dict(width=0.5, color=color)),
+                text=grp["title"],
+                hovertemplate="<b>%{text}</b><br>카테고리: " + cat + "<extra></extra>",
+            ))
+
         fig_pca.update_layout(
-            height=480,
-            margin=dict(t=10, b=10),
-            xaxis=dict(visible=False),
-            yaxis=dict(visible=False),
+            height=520,
+            margin=dict(t=10, b=40, l=40, r=10),
+            xaxis=dict(
+                title="PC1",
+                showgrid=True,
+                gridcolor="rgba(148,163,184,0.1)",
+                zeroline=True,
+                zerolinecolor="rgba(148,163,184,0.3)",
+            ),
+            yaxis=dict(
+                title="PC2",
+                showgrid=True,
+                gridcolor="rgba(148,163,184,0.1)",
+                zeroline=True,
+                zerolinecolor="rgba(148,163,184,0.3)",
+            ),
             plot_bgcolor="rgba(0,0,0,0)",
             paper_bgcolor="rgba(0,0,0,0)",
+            legend=dict(title="카테고리"),
         )
         st.plotly_chart(fig_pca, use_container_width=True)
     else:
