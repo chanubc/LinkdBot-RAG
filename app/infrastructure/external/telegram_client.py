@@ -2,9 +2,10 @@ import html
 
 import httpx
 
+from app.application.constants.telegram_navigation import back_to_menu_row
+from app.application.ports.telegram_port import TelegramPort
 from app.core.config import settings
 from app.domain.entities.knowledge_source import KnowledgeSource
-from app.application.ports.telegram_port import TelegramPort
 
 from app.core.logger import logger
 
@@ -14,7 +15,7 @@ class TelegramRepository(TelegramPort):
     def _base(self) -> str:
         return f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}"
 
-    async def _post_message(self, payload: dict) -> None:
+    async def _post_message(self, payload: dict, *, raise_on_error: bool = False) -> None:
         async with httpx.AsyncClient() as client:
             resp = await client.post(f"{self._base}/sendMessage", json=payload)
             if not resp.is_success:
@@ -24,9 +25,24 @@ class TelegramRepository(TelegramPort):
                     resp.text,
                     str(payload.get("text", ""))[:200],
                 )
+                if raise_on_error:
+                    resp.raise_for_status()
 
-    async def send_message(self, chat_id: int, text: str) -> None:
-        await self._post_message({"chat_id": chat_id, "text": text, "parse_mode": "HTML"})
+    def _with_back_to_menu(self, keyboard: list[list[dict]] | None = None) -> list[list[dict]]:
+        rows = list(keyboard or [])
+        rows.append(back_to_menu_row())
+        return rows
+
+    async def send_message(
+        self,
+        chat_id: int,
+        text: str,
+        reply_markup: dict | None = None,
+    ) -> None:
+        payload: dict = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
+        await self._post_message(payload)
 
     async def send_notion_connect_button(self, chat_id: int, login_url: str) -> None:
         await self._post_message(
@@ -117,7 +133,11 @@ class TelegramRepository(TelegramPort):
 
     async def send_search_results(self, chat_id: int, query: str, results: list[dict]) -> None:
         if not results:
-            await self.send_message(chat_id, f"🔍 <b>{html.escape(query)}</b>\n\n저장된 링크 중 관련 내용을 찾지 못했어요.")
+            await self.send_message(
+                chat_id,
+                f"🔍 <b>{html.escape(query)}</b>\n\n저장된 링크 중 관련 내용을 찾지 못했어요.",
+                reply_markup={"inline_keyboard": self._with_back_to_menu()},
+            )
             return
 
         lines = [f"🔍 <b>{html.escape(query)}</b> 검색 결과\n"]
@@ -144,8 +164,7 @@ class TelegramRepository(TelegramPort):
             "parse_mode": "HTML",
             "disable_web_page_preview": True,
         }
-        if keyboard:
-            payload["reply_markup"] = {"inline_keyboard": keyboard[:10]}
+        payload["reply_markup"] = {"inline_keyboard": self._with_back_to_menu(keyboard[:10])}
         await self._post_message(payload)
 
     async def send_ask_response(
@@ -178,8 +197,7 @@ class TelegramRepository(TelegramPort):
             "parse_mode": "HTML",
             "disable_web_page_preview": True,
         }
-        if keyboard:
-            payload["reply_markup"] = {"inline_keyboard": keyboard[:10]}
+        payload["reply_markup"] = {"inline_keyboard": self._with_back_to_menu(keyboard[:10])}
         await self._post_message(payload)
 
     async def send_menu_message(
@@ -223,9 +241,7 @@ class TelegramRepository(TelegramPort):
                             {"text": "📈 대시보드", "url": dashboard_url},
                             notion_button,
                         ],
-                        [
-                            {"text": "📖 도움말", "callback_data": "menu:help"},
-                        ],
+                        [{"text": "📖 도움말", "callback_data": "menu:help"}],
                     ]
                 },
             }
@@ -264,15 +280,11 @@ class TelegramRepository(TelegramPort):
         link_id: int | None = None,
     ) -> None:
         payload: dict = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+        keyboard: list[list[dict]] = []
         if link_id is not None:
-            payload["reply_markup"] = {
-                "inline_keyboard": [[
-                    {"text": "✅ 읽음 처리", "callback_data": f"mark_read:{link_id}"},
-                ]]
-            }
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(f"{self._base}/sendMessage", json=payload)
-            resp.raise_for_status()
+            keyboard.append([{"text": "✅ 읽음 처리", "callback_data": f"mark_read:{link_id}"}])
+        payload["reply_markup"] = {"inline_keyboard": self._with_back_to_menu(keyboard)}
+        await self._post_message(payload, raise_on_error=True)
 
     async def register_commands(self) -> bool:
         commands = [

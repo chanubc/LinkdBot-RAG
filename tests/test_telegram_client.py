@@ -41,7 +41,8 @@ async def test_send_search_results_adds_mark_read_buttons(telegram_repo):
 
     assert "reply_markup" in payload
     assert payload["reply_markup"]["inline_keyboard"] == [
-        [{"text": "✅ 1번 읽음 처리", "callback_data": "mark_read:7"}]
+        [{"text": "✅ 1번 읽음 처리", "callback_data": "mark_read:7"}],
+        [{"text": "« Back to Menu", "callback_data": "nav:menu"}],
     ]
 
 
@@ -60,5 +61,33 @@ async def test_send_ask_response_adds_source_mark_read_buttons(telegram_repo):
 
     assert payload["text"].startswith("최종 답변")
     assert payload["reply_markup"]["inline_keyboard"] == [
-        [{"text": "✅ 출처 1 읽음 처리", "callback_data": "mark_read:11"}]
+        [{"text": "✅ 출처 1 읽음 처리", "callback_data": "mark_read:11"}],
+        [{"text": "« Back to Menu", "callback_data": "nav:menu"}],
     ]
+
+
+@pytest.mark.asyncio
+async def test_send_menu_message_does_not_include_back_row(telegram_repo):
+    await telegram_repo.send_menu_message(
+        chat_id=123,
+        dashboard_url="https://dash.example.com",
+        notion_url="https://www.notion.so/abcd",
+    )
+
+    payload = telegram_repo._post_message.await_args.args[0]  # type: ignore[attr-defined]
+    assert all(
+        row != [{"text": "« Back to Menu", "callback_data": "nav:menu"}]
+        for row in payload["reply_markup"]["inline_keyboard"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_send_weekly_report_adds_back_button_row(telegram_repo):
+    await telegram_repo.send_weekly_report(123, "weekly text", link_id=9)
+
+    payload = telegram_repo._post_message.await_args.args[0]  # type: ignore[attr-defined]
+    assert payload["reply_markup"]["inline_keyboard"] == [
+        [{"text": "✅ 읽음 처리", "callback_data": "mark_read:9"}],
+        [{"text": "« Back to Menu", "callback_data": "nav:menu"}],
+    ]
+    assert telegram_repo._post_message.await_args.kwargs["raise_on_error"] is True  # type: ignore[attr-defined]
