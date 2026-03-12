@@ -61,10 +61,7 @@ class SaveMemoUseCase:
 
             msg = "✅ 메모 저장 완료!"
             if notion_page_url:
-                user = await self._user_repo.get_by_telegram_id(telegram_id)
-                if user and user.notion_database_id:
-                    db_id = user.notion_database_id.replace("-", "")
-                    msg += f"\n\n📓 Notion: https://www.notion.so/{db_id}"
+                msg += f"\n\n📓 Notion: {notion_page_url}"
             await self._telegram.send_message(telegram_id, msg)
 
         except Exception as exc:
@@ -79,7 +76,7 @@ class SaveMemoUseCase:
         if not token or not user or not user.notion_database_id:
             return ""
         try:
-            await self._notion.create_database_entry(
+            return await self._notion.create_database_entry(
                 access_token=token,
                 database_id=user.notion_database_id,
                 title=memo[:50],
@@ -89,7 +86,5 @@ class SaveMemoUseCase:
                 url=None,
                 memo=memo,
             )
-            db_id = user.notion_database_id.replace("-", "")
-            return f"https://www.notion.so/{db_id}"
         except Exception:
             return ""

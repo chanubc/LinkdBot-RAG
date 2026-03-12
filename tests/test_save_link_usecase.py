@@ -60,7 +60,7 @@ async def test_embedding_batched_once_for_summary_and_chunks(save_link_usecase, 
     raw_chunks = split_chunks(content)
 
     link_repo.exists_by_user_and_url.return_value = False
-    scraper.scrape.return_value = (content, "og")
+    scraper.scrape.return_value = (content, "og", "")
     openai.analyze_content.return_value = ContentAnalysis(
         title="테스트 제목",
         summary=summary,
@@ -84,6 +84,56 @@ async def test_embedding_batched_once_for_summary_and_chunks(save_link_usecase, 
         list(zip(raw_chunks, [[0.3, 0.4]])),
     )
     db.commit.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_og_description_prioritized_and_child_page_url_forwarded(
+    save_link_usecase,
+    save_link_dependencies,
+):
+    user_repo = save_link_dependencies["user_repo"]
+    link_repo = save_link_dependencies["link_repo"]
+    openai = save_link_dependencies["openai"]
+    scraper = save_link_dependencies["scraper"]
+    telegram = save_link_dependencies["telegram"]
+    notion = save_link_dependencies["notion"]
+
+    content = "hello world from linkdbot"
+    og_description = "OG description wins"
+    notion_page_url = "https://www.notion.so/workspace/child-page"
+
+    link_repo.exists_by_user_and_url.return_value = False
+    scraper.scrape.return_value = (content, "og", og_description)
+    openai.analyze_content.return_value = ContentAnalysis(
+        title="테스트 제목",
+        summary="LLM fallback summary",
+        category="AI",
+        keywords=["a", "b"],
+    )
+    openai.embed.return_value = [[0.1, 0.2], [0.3, 0.4]]
+    link_repo.save_link.return_value = SimpleNamespace(id=123)
+    user_repo.get_decrypted_token.return_value = "secret"
+    user_repo.get_by_telegram_id.return_value = SimpleNamespace(notion_database_id="db-123")
+    notion.create_database_entry.return_value = notion_page_url
+
+    await save_link_usecase.execute(telegram_id=111, url="https://example.com/post", memo=None)
+
+    save_link_kwargs = link_repo.save_link.call_args.kwargs
+    assert save_link_kwargs["summary"] == og_description
+
+    notion.create_database_entry.assert_awaited_once_with(
+        access_token="secret",
+        database_id="db-123",
+        title="테스트 제목",
+        category="AI",
+        keywords=["a", "b"],
+        summary=og_description,
+        content=content,
+        url="https://example.com/post",
+        memo=None,
+    )
+    telegram.send_link_saved_message.assert_awaited_once()
+    assert telegram.send_link_saved_message.await_args.kwargs["notion_url"] == notion_page_url
 
 
 @pytest.mark.asyncio

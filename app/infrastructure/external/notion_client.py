@@ -56,6 +56,7 @@ class NotionRepository(NotionPort):
                         "Category": {"select": {}},
                         "Keywords": {"multi_select": {}},
                         "Summary":  {"rich_text": {}},
+                        "Content":  {"rich_text": {}},
                         "Memo":     {"rich_text": {}},
                         "Date":     {"date": {}},
                     },
@@ -72,6 +73,7 @@ class NotionRepository(NotionPort):
         category: str,
         keywords: list[str],
         summary: str,
+        content: str | None = None,
         url: str | None = None,
         memo: str | None = None,
     ) -> str:
@@ -83,6 +85,8 @@ class NotionRepository(NotionPort):
             "Summary":  {"rich_text": [{"text": {"content": summary[:2000]}}]},
             "Date":     {"date": {"start": datetime.now(timezone.utc).date().isoformat()}},
         }
+        if content:
+            properties["Content"] = {"rich_text": [{"text": {"content": content[:2000]}}]}
         if url:
             properties["URL"] = {"url": url}
         if memo:

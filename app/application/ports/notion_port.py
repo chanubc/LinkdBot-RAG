@@ -28,6 +28,7 @@ class NotionPort(ABC):
         category: str,
         keywords: list[str],
         summary: str,
+        content: str | None = None,
         url: str | None = None,
         memo: str | None = None,
     ) -> str:
