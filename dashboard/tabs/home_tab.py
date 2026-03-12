@@ -1,4 +1,4 @@
-"""🏠 홈 탭 — 그래프 뷰 + 오늘의 추천 + 주간 요약."""
+"""🏠 홈 탭 — 관심사 분석 배너 + 지식 그래프 + 주간 요약."""
 import math
 
 import plotly.graph_objects as go
@@ -8,16 +8,10 @@ from dashboard.api_client import (
     DashboardAPIClient,
     cached_get_drift,
     cached_get_graph_view,
-    cached_get_reactivation,
     cached_get_stats,
 )
+from dashboard.colors import CATEGORY_COLORS, DEFAULT_COLOR
 from dashboard.logger import logger
-
-
-GRAPH_COLORS = {
-    "category": "#6366F1",
-    "link": "#10B981",
-}
 
 
 def _drift_to_text(tvd: float, delta: dict) -> str:
@@ -45,20 +39,17 @@ def _drift_to_text(tvd: float, delta: dict) -> str:
     return ". ".join(parts) + "."
 
 
-def render(client: DashboardAPIClient, advanced: bool = False) -> None:
+def render(client: DashboardAPIClient) -> None:
     jwt_token: str = st.session_state["jwt_token"]
     with st.spinner("로딩 중..."):
         try:
             stats = cached_get_stats(jwt_token)
-            reactivation = cached_get_reactivation(jwt_token)
             drift = cached_get_drift(jwt_token)
             graph = cached_get_graph_view(jwt_token)
         except Exception as e:
             logger.error(f"Home tab data load failed: {e}")
             st.error(f"데이터 로딩 실패: {e}")
             return
-
-    top3 = reactivation.get("items", [])[:3]
 
     tvd = drift.get("tvd", 0.0)
     delta = drift.get("delta", {})
@@ -81,30 +72,6 @@ def render(client: DashboardAPIClient, advanced: bool = False) -> None:
         st.metric("읽음률", f"{read_ratio:.0%}")
         top_cat = stats.get("top_category") or "-"
         st.metric("최다 카테고리", top_cat)
-
-    st.divider()
-
-    st.subheader("🔥 오늘 읽으면 좋은 글")
-
-    if not top3:
-        st.info("재활성화 후보가 없습니다. 링크를 더 저장하거나 3일 후에 다시 확인하세요.")
-    else:
-        for link in top3:
-            _render_recommendation_card(link, advanced)
-
-    if advanced:
-        with st.expander("🔬 Drift 세부 지표", expanded=False):
-            st.metric("TVD", f"{tvd:.3f}")
-            if delta:
-                import pandas as pd
-
-                df = pd.DataFrame(
-                    [
-                        {"카테고리": k, "변화량": round(v, 3)}
-                        for k, v in sorted(delta.items(), key=lambda x: x[1], reverse=True)
-                    ]
-                )
-                st.dataframe(df, use_container_width=True, hide_index=True)
 
 
 def _render_graph_view(graph: dict) -> None:
@@ -131,38 +98,78 @@ def _render_graph_view(graph: dict) -> None:
             x=edge_x,
             y=edge_y,
             mode="lines",
-            line={"width": 1, "color": "rgba(148, 163, 184, 0.45)"},
+            line={"width": 1, "color": "rgba(148, 163, 184, 0.25)"},
             hoverinfo="none",
             showlegend=False,
         )
     )
 
-    for node_type in ("category", "link"):
-        typed_nodes = [node for node in nodes if node.get("type") == node_type]
-        if not typed_nodes:
+    # 카테고리 노드: 카테고리별 고유 색상 + 네온 글로우
+    category_nodes = [n for n in nodes if n.get("type") == "category"]
+    for node in category_nodes:
+        color = CATEGORY_COLORS.get(node.get("category", ""), DEFAULT_COLOR)
+        pos = positions.get(node["id"])
+        if not pos:
             continue
-
         fig.add_trace(
             go.Scatter(
-                x=[positions[node["id"]][0] for node in typed_nodes],
-                y=[positions[node["id"]][1] for node in typed_nodes],
-                mode="markers+text" if node_type == "category" else "markers",
-                text=[node["label"] for node in typed_nodes] if node_type == "category" else None,
+                x=[pos[0]],
+                y=[pos[1]],
+                mode="markers+text",
+                text=[node["label"]],
                 textposition="top center",
                 marker={
-                    "size": [node.get("size", 16) for node in typed_nodes],
-                    "color": GRAPH_COLORS[node_type],
-                    "line": {"width": 1, "color": "white"},
-                    "opacity": 0.9 if node_type == "category" else 0.75,
+                    "size": node.get("size", 22),
+                    "color": color,
+                    "line": {"width": 2, "color": color},
+                    "opacity": 0.95,
                 },
-                customdata=[[node.get("title"), node.get("category"), node.get("url")] for node in typed_nodes],
+                hovertemplate=f"<b>{node['label']}</b><extra></extra>",
+                name=node["label"],
+                showlegend=True,
+            )
+        )
+
+    # 링크 노드: 부모 카테고리 색상의 밝은 변형
+    link_nodes = [n for n in nodes if n.get("type") == "link"]
+    # 카테고리별로 묶어서 한 번에 렌더링
+    links_by_category: dict[str, list] = {}
+    for node in link_nodes:
+        cat = node.get("category", "")
+        links_by_category.setdefault(cat, []).append(node)
+
+    for cat, cat_links in links_by_category.items():
+        color = CATEGORY_COLORS.get(cat, DEFAULT_COLOR)
+        x_vals = []
+        y_vals = []
+        custom = []
+        for node in cat_links:
+            pos = positions.get(node["id"])
+            if not pos:
+                continue
+            x_vals.append(pos[0])
+            y_vals.append(pos[1])
+            custom.append([node.get("title"), node.get("category"), node.get("url")])
+
+        if not x_vals:
+            continue
+        fig.add_trace(
+            go.Scatter(
+                x=x_vals,
+                y=y_vals,
+                mode="markers",
+                marker={
+                    "size": 7,
+                    "color": color,
+                    "opacity": 0.6,
+                    "line": {"width": 1, "color": color},
+                },
+                customdata=custom,
                 hovertemplate=(
                     "<b>%{customdata[0]}</b><br>카테고리: %{customdata[1]}"
                     "<br>%{customdata[2]}<extra></extra>"
-                    if node_type == "link"
-                    else "<b>%{text}</b><extra></extra>"
                 ),
-                name="카테고리" if node_type == "category" else "링크",
+                showlegend=False,
             )
         )
 
@@ -215,35 +222,3 @@ def _build_graph_positions(nodes: list[dict], edges: list[dict]) -> dict[str, tu
         positions[node["id"]] = (1.15 * math.cos(angle), 1.15 * math.sin(angle))
 
     return positions
-
-
-def _render_recommendation_card(link: dict, advanced: bool) -> None:
-    with st.container(border=True):
-        col1, col2 = st.columns([0.88, 0.12])
-
-        with col1:
-            st.markdown(f"**{link['title']}**")
-            cat = link.get("category", "")
-            score = link.get("score", 0)
-
-            similarity = link.get("similarity", 0)
-            recency = link.get("recency", 0)
-            if similarity * 0.6 >= recency * 0.4:
-                reason = "✨ 최근 관심사와 유사한 글"
-            else:
-                reason = "🕐 오랫동안 읽지 않은 글"
-
-            st.caption(f"{cat}  ·  {reason}")
-            summary = link.get("summary", "")
-            if summary:
-                st.write(summary[:120] + ("..." if len(summary) > 120 else ""))
-
-            if advanced:
-                st.caption(
-                    f"Score: {score:.3f} (유사도 {link.get('similarity', 0):.2f} · 망각 {link.get('recency', 0):.2f})"
-                )
-
-        with col2:
-            url = link.get("url")
-            if url:
-                st.link_button("🔗", url, use_container_width=True)
