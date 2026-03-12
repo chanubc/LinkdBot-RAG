@@ -2,27 +2,24 @@
 
 All endpoints use /me pattern — telegram_id extracted from JWT, never from URL.
 """
+from collections import Counter
 from datetime import datetime, timedelta, timezone
+import json
 
 import numpy as np
-from fastapi import BackgroundTasks, Depends, HTTPException, Query
+from fastapi import Depends, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 from fastapi.routing import APIRouter
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
-
-from collections import Counter
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth_di import get_user_repository
 from app.api.dependencies.dashboard_auth import get_dashboard_telegram_id
 from app.api.dependencies.link_di import get_link_repository, get_openai_client
 from app.api.dependencies.rag_di import get_search_usecase
-from app.api.dependencies.report_di import get_weekly_report_usecase
-from app.application.usecases.search_usecase import SearchUseCase
 from app.application.ports.ai_analysis_port import AIAnalysisPort
-from app.application.usecases.generate_weekly_report_usecase import (
-    GenerateWeeklyReportUseCase,
-)
+from app.application.usecases.search_usecase import SearchUseCase
 from app.domain.drift import calculate_drift
 from app.domain.repositories.i_link_repository import ILinkRepository
 from app.domain.repositories.i_user_repository import IUserRepository
@@ -32,14 +29,9 @@ from app.domain.scoring import (
     cosine_similarity,
 )
 from app.infrastructure.database import get_db
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
-
-
-# ---------------------------------------------------------------------------
-# Auth
-# ---------------------------------------------------------------------------
+_GRAPH_LINK_LIMIT = 150
 
 
 @router.get("/auth/me")
@@ -54,11 +46,6 @@ async def get_my_info(
     }
 
 
-# ---------------------------------------------------------------------------
-# Drift
-# ---------------------------------------------------------------------------
-
-
 @router.get("/drift/me")
 async def get_my_drift(
     telegram_id: int = Depends(get_dashboard_telegram_id),
@@ -69,20 +56,15 @@ async def get_my_drift(
     month_ago = now - timedelta(days=30)
 
     current_cats = await link_repo.get_categories_by_period(telegram_id, week_ago, now)
-    past_cats = await link_repo.get_categories_by_period(
-        telegram_id, month_ago, week_ago
-    )
+    past_cats = await link_repo.get_categories_by_period(telegram_id, month_ago, week_ago)
 
     tvd, delta = calculate_drift(current_cats, past_cats)
 
-    # 8-week time series
     weekly_series: list[dict] = []
     for i in range(8, 0, -1):
         week_start = now - timedelta(weeks=i)
         week_end = now - timedelta(weeks=i - 1)
-        cats = await link_repo.get_categories_by_period(
-            telegram_id, week_start, week_end
-        )
+        cats = await link_repo.get_categories_by_period(telegram_id, week_start, week_end)
         from app.domain.drift import calculate_category_distribution
 
         dist = calculate_category_distribution(cats)
@@ -108,11 +90,6 @@ def _dist(cats: list[str]) -> dict[str, float]:
     from app.domain.drift import calculate_category_distribution
 
     return calculate_category_distribution(cats)
-
-
-# ---------------------------------------------------------------------------
-# Reactivation
-# ---------------------------------------------------------------------------
 
 
 @router.get("/reactivation/me")
@@ -141,11 +118,7 @@ async def get_my_reactivation(
     )
 
     if not centroid or not candidates:
-        return {
-            "items": [],
-            "centroid_source": centroid_source,
-            "total": 0,
-        }
+        return {"items": [], "centroid_source": centroid_source, "total": 0}
 
     scored = []
     for c in candidates:
@@ -166,9 +139,7 @@ async def get_my_reactivation(
                 "similarity": round(similarity, 4),
                 "recency": round(recency, 4),
                 "score": round(score, 4),
-                "created_at": created_at.isoformat()
-                if hasattr(created_at, "isoformat")
-                else str(created_at),
+                "created_at": created_at.isoformat() if hasattr(created_at, "isoformat") else str(created_at),
             }
         )
 
@@ -178,11 +149,6 @@ async def get_my_reactivation(
         "centroid_source": centroid_source,
         "total": len(scored),
     }
-
-
-# ---------------------------------------------------------------------------
-# Embeddings (PCA only)
-# ---------------------------------------------------------------------------
 
 
 @router.get("/embeddings/me")
@@ -216,9 +182,13 @@ async def get_my_embeddings(
     return {"items": items, "explained_variance": explained_variance}
 
 
-# ---------------------------------------------------------------------------
-# Links
-# ---------------------------------------------------------------------------
+@router.get("/graph/me")
+async def get_my_graph(
+    telegram_id: int = Depends(get_dashboard_telegram_id),
+    link_repo: ILinkRepository = Depends(get_link_repository),
+):
+    links = await link_repo.get_all_links_with_metadata(telegram_id, limit=_GRAPH_LINK_LIMIT)
+    return _build_graph_payload(links)
 
 
 @router.get("/links/me")
@@ -248,20 +218,6 @@ async def get_my_links(
     }
 
 
-@router.patch("/links/{link_id}/read")
-async def mark_link_read(
-    link_id: int,
-    telegram_id: int = Depends(get_dashboard_telegram_id),
-    db: AsyncSession = Depends(get_db),
-    link_repo: ILinkRepository = Depends(get_link_repository),
-):
-    updated = await link_repo.mark_as_read(link_id, telegram_id)
-    await db.commit()
-    if not updated:
-        raise HTTPException(status_code=404, detail="링크를 찾을 수 없습니다.")
-    return {"status": "ok"}
-
-
 @router.delete("/links/{link_id}")
 async def delete_link(
     link_id: int,
@@ -276,11 +232,6 @@ async def delete_link(
     return {"status": "ok"}
 
 
-# ---------------------------------------------------------------------------
-# Stats
-# ---------------------------------------------------------------------------
-
-
 @router.get("/stats/me")
 async def get_my_stats(
     telegram_id: int = Depends(get_dashboard_telegram_id),
@@ -293,46 +244,28 @@ async def get_my_stats(
 
     total = len(links)
     read_count = sum(1 for l in links if l["is_read"])
-    this_week_count = sum(
-        1 for l in links
-        if l["created_at"] and l["created_at"][:10] >= week_ago
-    )
-    this_month_count = sum(
-        1 for l in links
-        if l["created_at"] and l["created_at"][:10] >= month_ago
-    )
+    this_week_count = sum(1 for l in links if l["created_at"] and l["created_at"][:10] >= week_ago)
+    this_month_count = sum(1 for l in links if l["created_at"] and l["created_at"][:10] >= month_ago)
 
     cat_counter = Counter(l["category"] for l in links if l["category"])
     top_category = cat_counter.most_common(1)[0][0] if cat_counter else None
 
-    # 월별 저장 수 (최근 6개월)
     monthly: dict[str, int] = {}
     for l in links:
         if l["created_at"]:
-            ym = l["created_at"][:7]  # "2026-03"
+            ym = l["created_at"][:7]
             monthly[ym] = monthly.get(ym, 0) + 1
-    monthly_series = [
-        {"month": k, "count": v}
-        for k, v in sorted(monthly.items())[-6:]
-    ]
+    monthly_series = [{"month": k, "count": v} for k, v in sorted(monthly.items())[-6:]]
 
-    # 카테고리 분포
     category_dist = [
         {"category": cat, "count": cnt}
         for cat, cnt in cat_counter.most_common()
     ]
 
-    # 키워드 Top 20 (keywords는 JSON 배열 문자열)
-    import json
     keyword_counter: Counter = Counter()
     for l in links:
-        raw = l.get("keywords", "")
-        if raw:
-            try:
-                kws = json.loads(raw) if raw.startswith("[") else [k.strip() for k in raw.split(",")]
-                keyword_counter.update(kws)
-            except Exception:
-                pass
+        keyword_counter.update(_parse_keywords(l.get("keywords", "")))
+
     top_keywords = [
         {"keyword": kw, "count": cnt}
         for kw, cnt in keyword_counter.most_common(20)
@@ -353,11 +286,6 @@ async def get_my_stats(
     }
 
 
-# ---------------------------------------------------------------------------
-# Search (JWT 기반 — IDOR 방지)
-# ---------------------------------------------------------------------------
-
-
 @router.get("/search/me")
 async def search_my_links(
     telegram_id: int = Depends(get_dashboard_telegram_id),
@@ -371,16 +299,67 @@ async def search_my_links(
     return {"query": q, "results": results}
 
 
-# ---------------------------------------------------------------------------
-# Report trigger
-# ---------------------------------------------------------------------------
+def _build_graph_payload(links: list[dict]) -> dict:
+    if not links:
+        return {"nodes": [], "edges": [], "meta": {"link_count": 0, "category_count": 0}}
+
+    category_counts = Counter(link.get("category") or "Uncategorized" for link in links)
+    nodes: list[dict] = []
+    edges: list[dict] = []
+
+    for category, count in sorted(category_counts.items()):
+        category_id = f"category:{category}"
+        nodes.append(
+            {
+                "id": category_id,
+                "type": "category",
+                "label": category,
+                "title": category,
+                "category": category,
+                "size": 22 + (count * 2),
+            }
+        )
+
+    for link in links:
+        category = link.get("category") or "Uncategorized"
+        category_id = f"category:{category}"
+        link_id = f"link:{link['id']}"
+        title = link.get("title") or "제목 없음"
+        nodes.append(
+            {
+                "id": link_id,
+                "type": "link",
+                "label": _truncate_label(title, 22),
+                "title": title,
+                "category": category,
+                "url": link.get("url"),
+                "size": 10,
+                "is_read": link.get("is_read", False),
+                "created_at": link.get("created_at"),
+            }
+        )
+        edges.append({"source": category_id, "target": link_id})
+
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "meta": {
+            "link_count": len(links),
+            "category_count": len(category_counts),
+        },
+    }
 
 
-@router.post("/report/trigger/me")
-async def trigger_my_report(
-    background_tasks: BackgroundTasks,
-    telegram_id: int = Depends(get_dashboard_telegram_id),
-    report_usecase: GenerateWeeklyReportUseCase = Depends(get_weekly_report_usecase),
-):
-    background_tasks.add_task(report_usecase.execute, telegram_id)
-    return {"status": "triggered"}
+def _truncate_label(text: str, limit: int) -> str:
+    return text if len(text) <= limit else f"{text[:limit - 1]}…"
+
+
+def _parse_keywords(raw: str) -> list[str]:
+    if not raw:
+        return []
+    try:
+        if raw.startswith("["):
+            return [keyword.strip() for keyword in json.loads(raw) if keyword and str(keyword).strip()]
+        return [keyword.strip() for keyword in raw.split(",") if keyword.strip()]
+    except Exception:
+        return []
