@@ -41,7 +41,7 @@ class JinaReaderAdapter(ScraperPort):
                 content = resp.text.strip()
                 if not content:
                     raise ValueError("Jina Reader returned empty content")
-                return content, "jina", ""
+                return content, "jina", "", ""
         except Exception as exc:
             logger.warning(f"Jina Reader failed for {url} ({exc}), falling back to OG scraper")
             return await self._fallback.scrape(url)

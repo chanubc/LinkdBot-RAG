@@ -50,7 +50,7 @@ class SaveLinkUseCase:
             await self._telegram.send_message(telegram_id, "🔗 링크를 저장하는 중이에요...")
 
             # 1. Scrape
-            scraped_content, content_source, og_description = _normalize_scrape_result(
+            scraped_content, content_source, og_description, og_title = _normalize_scrape_result(
                 await self._scraper.scrape(url)
             )
             content = scraped_content
@@ -61,17 +61,22 @@ class SaveLinkUseCase:
             # 2. Analyze
             await self._telegram.send_message(telegram_id, "🤖 AI가 내용을 분석하고 있어요...")
             analysis = await self._openai.analyze_content(content)
-            title: str = analysis.title or url
-            summary: str = og_description or analysis.summary
+            title: str = og_title or analysis.title or url
+            ai_summary: str = analysis.summary          # bullet 요약 (Notion Content 필드)
+            description: str = og_description           # og:description (Notion Summary 필드)
             category: str = analysis.category
             keywords: list[str] = analysis.keywords
             keywords_json = json.dumps(keywords, ensure_ascii=False)
 
+            # DB 및 임베딩에는 AI 요약(bullet)을 사용
+            summary: str = ai_summary or description
+
             # 2-1. Summary + chunks 임베딩을 1회 호출로 배치 처리
+            # OG fallback은 메타데이터만 있어 청킹 불필요 (description ~200자)
             if content_source == "jina":
                 raw_chunks = split_markdown(content)
             else:
-                raw_chunks = split_chunks(content)
+                raw_chunks = []
 
             embedding_inputs: list[str] = []
             has_summary_embedding = bool(summary)
@@ -119,8 +124,8 @@ class SaveLinkUseCase:
             notion_url = await self._save_to_notion(
                 telegram_id=telegram_id,
                 title=title,
-                summary=summary,
-                content=content,
+                description=description,
+                ai_summary=ai_summary,
                 category=category,
                 keywords=keywords,
                 url=url,
@@ -143,14 +148,14 @@ class SaveLinkUseCase:
         self,
         telegram_id: int,
         title: str,
-        summary: str,
-        content: str,
+        description: str,
+        ai_summary: str,
         category: str,
         keywords: list[str],
         url: str | None,
         memo: str | None,
     ) -> str:
-        """Notion 저장. 성공 시 child page URL 반환, 실패 시 빈 문자열."""
+        """Notion 저장. 성공 시 page URL 반환, 실패 시 빈 문자열."""
         token = await self._user_repo.get_decrypted_token(telegram_id)
         user = await self._user_repo.get_by_telegram_id(telegram_id)
         if not token or not user or not user.notion_database_id:
@@ -162,22 +167,28 @@ class SaveLinkUseCase:
                 title=title,
                 category=category,
                 keywords=keywords,
-                summary=summary,
-                content=content,
+                description=description,
+                ai_summary=ai_summary,
                 url=url,
                 memo=memo,
             )
-        except Exception:
+        except Exception as exc:
+            await self._telegram.send_message(
+                telegram_id, f"⚠️ Notion 저장 실패: {html.escape(str(exc)[:200])}"
+            )
             return ""
 
 
-def _normalize_scrape_result(scrape_result: tuple[str, ...]) -> tuple[str, str, str]:
+def _normalize_scrape_result(scrape_result: tuple[str, ...]) -> tuple[str, str, str, str]:
+    if len(scrape_result) == 4:
+        content, content_source, og_description, og_title = scrape_result
+        return content, content_source, og_description, og_title
     if len(scrape_result) == 3:
         content, content_source, og_description = scrape_result
-        return content, content_source, og_description
+        return content, content_source, og_description, ""
     if len(scrape_result) == 2:
         content, content_source = scrape_result
-        return content, content_source, ""
+        return content, content_source, "", ""
     raise ValueError("Unexpected scrape result format")
 
 

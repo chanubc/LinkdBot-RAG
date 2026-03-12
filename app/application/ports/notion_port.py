@@ -27,10 +27,14 @@ class NotionPort(ABC):
         title: str,
         category: str,
         keywords: list[str],
-        summary: str,
-        content: str | None = None,
+        description: str,
+        ai_summary: str | None = None,
         url: str | None = None,
         memo: str | None = None,
     ) -> str:
-        """Notion DB에 행 추가 후 페이지 URL 반환."""
+        """Notion DB에 행 추가 후 페이지 URL 반환.
+
+        description: og:description (원문 메타 설명)
+        ai_summary: AI가 생성한 bullet 요약
+        """
         pass

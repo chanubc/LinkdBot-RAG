@@ -5,7 +5,7 @@ import pytest
 
 from app.application.usecases.save_link_usecase import SaveLinkUseCase
 from app.domain.entities.content_analysis import ContentAnalysis
-from app.utils.text import split_chunks
+from app.utils.text import split_chunks, split_markdown
 
 
 @pytest.fixture
@@ -46,7 +46,8 @@ async def test_duplicate_url_short_circuit_without_llm_calls(save_link_usecase, 
 
 
 @pytest.mark.asyncio
-async def test_embedding_batched_once_for_summary_and_chunks(save_link_usecase, save_link_dependencies):
+async def test_jina_source_embedding_batched_once_for_summary_and_chunks(save_link_usecase, save_link_dependencies):
+    """Jina source: summary + chunks가 1회 배치 임베딩으로 처리된다."""
     db = save_link_dependencies["db"]
     user_repo = save_link_dependencies["user_repo"]
     link_repo = save_link_dependencies["link_repo"]
@@ -55,19 +56,19 @@ async def test_embedding_batched_once_for_summary_and_chunks(save_link_usecase, 
     scraper = save_link_dependencies["scraper"]
 
     url = "https://example.com/post"
-    content = "hello world from linkdbot"
-    summary = "요약 텍스트"
-    raw_chunks = split_chunks(content)
+    content = "# Section One\nhello world from linkdbot"
+    summary = "• point one\n• point two"
+    raw_chunks = split_markdown(content)
 
     link_repo.exists_by_user_and_url.return_value = False
-    scraper.scrape.return_value = (content, "og", "")
+    scraper.scrape.return_value = (content, "jina", "", "")
     openai.analyze_content.return_value = ContentAnalysis(
         title="테스트 제목",
         summary=summary,
         category="AI",
         keywords=["a", "b", "c", "d", "e"],
     )
-    openai.embed.return_value = [[0.1, 0.2], [0.3, 0.4]]
+    openai.embed.return_value = [[0.1, 0.2]] + [[0.3, 0.4]] * len(raw_chunks)
     link_repo.save_link.return_value = SimpleNamespace(id=123)
     user_repo.get_decrypted_token.return_value = None
     user_repo.get_by_telegram_id.return_value = None
@@ -81,16 +82,17 @@ async def test_embedding_batched_once_for_summary_and_chunks(save_link_usecase, 
 
     chunk_repo.save_chunks.assert_called_once_with(
         123,
-        list(zip(raw_chunks, [[0.3, 0.4]])),
+        list(zip(raw_chunks, [[0.3, 0.4]] * len(raw_chunks))),
     )
     db.commit.assert_called_once()
 
 
 @pytest.mark.asyncio
-async def test_og_description_prioritized_and_child_page_url_forwarded(
+async def test_ai_summary_stored_in_db_and_notion_receives_description_separately(
     save_link_usecase,
     save_link_dependencies,
 ):
+    """ai_summary는 DB summary에 저장되고, Notion은 description/ai_summary를 분리해서 받는다."""
     user_repo = save_link_dependencies["user_repo"]
     link_repo = save_link_dependencies["link_repo"]
     openai = save_link_dependencies["openai"]
@@ -98,19 +100,20 @@ async def test_og_description_prioritized_and_child_page_url_forwarded(
     telegram = save_link_dependencies["telegram"]
     notion = save_link_dependencies["notion"]
 
-    content = "hello world from linkdbot"
-    og_description = "OG description wins"
+    og_description = "OG meta description"
+    og_title = "OG Page Title"
+    ai_summary = "• point one\n• point two"
     notion_page_url = "https://www.notion.so/workspace/child-page"
 
     link_repo.exists_by_user_and_url.return_value = False
-    scraper.scrape.return_value = (content, "og", og_description)
+    scraper.scrape.return_value = (og_description, "og", og_description, og_title)
     openai.analyze_content.return_value = ContentAnalysis(
-        title="테스트 제목",
-        summary="LLM fallback summary",
+        title="AI Title",
+        summary=ai_summary,
         category="AI",
-        keywords=["a", "b"],
+        keywords=["a", "b", "c", "d", "e"],
     )
-    openai.embed.return_value = [[0.1, 0.2], [0.3, 0.4]]
+    openai.embed.return_value = [[0.1, 0.2]]
     link_repo.save_link.return_value = SimpleNamespace(id=123)
     user_repo.get_decrypted_token.return_value = "secret"
     user_repo.get_by_telegram_id.return_value = SimpleNamespace(notion_database_id="db-123")
@@ -118,22 +121,55 @@ async def test_og_description_prioritized_and_child_page_url_forwarded(
 
     await save_link_usecase.execute(telegram_id=111, url="https://example.com/post", memo=None)
 
+    # DB에는 ai_summary 저장
     save_link_kwargs = link_repo.save_link.call_args.kwargs
-    assert save_link_kwargs["summary"] == og_description
+    assert save_link_kwargs["summary"] == ai_summary
+    # og_title이 title로 사용됨
+    assert save_link_kwargs["title"] == og_title
 
+    # Notion은 description(og_description)과 ai_summary를 분리해서 받음
     notion.create_database_entry.assert_awaited_once_with(
         access_token="secret",
         database_id="db-123",
-        title="테스트 제목",
+        title=og_title,
         category="AI",
-        keywords=["a", "b"],
-        summary=og_description,
-        content=content,
+        keywords=["a", "b", "c", "d", "e"],
+        description=og_description,
+        ai_summary=ai_summary,
         url="https://example.com/post",
         memo=None,
     )
     telegram.send_link_saved_message.assert_awaited_once()
     assert telegram.send_link_saved_message.await_args.kwargs["notion_url"] == notion_page_url
+
+
+@pytest.mark.asyncio
+async def test_og_source_skips_chunking(save_link_usecase, save_link_dependencies):
+    """OG fallback 시 청킹 없이 summary_embedding만 저장된다."""
+    link_repo = save_link_dependencies["link_repo"]
+    chunk_repo = save_link_dependencies["chunk_repo"]
+    openai = save_link_dependencies["openai"]
+    scraper = save_link_dependencies["scraper"]
+    user_repo = save_link_dependencies["user_repo"]
+
+    link_repo.exists_by_user_and_url.return_value = False
+    scraper.scrape.return_value = ("short description", "og", "short description", "Title")
+    openai.analyze_content.return_value = ContentAnalysis(
+        title="Title",
+        summary="• AI bullet",
+        category="Dev",
+        keywords=["a", "b", "c", "d", "e"],
+    )
+    openai.embed.return_value = [[0.1, 0.2]]
+    link_repo.save_link.return_value = SimpleNamespace(id=42)
+    user_repo.get_decrypted_token.return_value = None
+    user_repo.get_by_telegram_id.return_value = None
+
+    await save_link_usecase.execute(telegram_id=111, url="https://example.com", memo=None)
+
+    # summary_embedding만 (청크 없음)
+    openai.embed.assert_called_once_with(["• AI bullet"])
+    chunk_repo.save_chunks.assert_not_called()
 
 
 @pytest.mark.asyncio

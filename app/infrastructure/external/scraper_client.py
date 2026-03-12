@@ -34,7 +34,6 @@ class ScraperRepository(ScraperPort):
             or ""
         )
 
-        content = f"{title}\n\n{description}".strip()
-        if not content:
+        if not title and not description:
             raise ValueError("페이지에서 콘텐츠를 추출할 수 없습니다.")
-        return content, "og", description
+        return description, "og", description, title
