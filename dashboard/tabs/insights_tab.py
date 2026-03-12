@@ -167,14 +167,14 @@ def render() -> None:
             height=520,
             margin=dict(t=10, b=40, l=40, r=10),
             xaxis=dict(
-                title="PC1",
+                title="→ 주요 관심사 차이",
                 showgrid=True,
                 gridcolor="rgba(148,163,184,0.1)",
                 zeroline=True,
                 zerolinecolor="rgba(148,163,184,0.3)",
             ),
             yaxis=dict(
-                title="PC2",
+                title="↑ 보조 관심사 차이",
                 showgrid=True,
                 gridcolor="rgba(148,163,184,0.1)",
                 zeroline=True,
