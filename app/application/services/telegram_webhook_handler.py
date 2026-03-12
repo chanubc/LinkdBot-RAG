@@ -32,7 +32,7 @@ class TelegramWebhookHandler:
 
     async def handle(self, data: dict, background_tasks: BackgroundTasks) -> None:
         if callback := data.get("callback_query"):
-            await self._handle_callback(callback)
+            await self._handle_callback(callback, background_tasks)
             return
 
         message = data.get("message") or data.get("channel_post")
@@ -59,7 +59,7 @@ class TelegramWebhookHandler:
 
         background_tasks.add_task(self._message_router.route, telegram_id, text)
 
-    async def _handle_callback(self, callback: dict) -> None:
+    async def _handle_callback(self, callback: dict, background_tasks: BackgroundTasks) -> None:
         await self._telegram.answer_callback_query(callback["id"])
         data = callback.get("data", "")
         chat_id: int | None = (callback.get("from") or {}).get("id")
@@ -87,7 +87,7 @@ class TelegramWebhookHandler:
                 "예시: <code>/ask 내가 저장한 RAG 관련 내용 요약해줘</code>",
             )
         elif data == "menu:report":
-            await self._message_router.route(chat_id, "/report")
+            background_tasks.add_task(self._message_router.route, chat_id, "/report")
         elif data.startswith("mark_read:"):
             try:
                 link_id = int(data.split(":", 1)[1])
