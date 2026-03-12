@@ -30,6 +30,10 @@ class TelegramWebhookHandler:
         self._mark_read_uc = mark_read_uc
         self._user_repo = user_repo
 
+    @staticmethod
+    def _back_to_menu_markup() -> dict:
+        return {"inline_keyboard": [[{"text": "« Back to Menu", "callback_data": "nav:menu"}]]}
+
     async def handle(self, data: dict, background_tasks: BackgroundTasks) -> None:
         if callback := data.get("callback_query"):
             await self._handle_callback(callback, background_tasks)
@@ -52,10 +56,20 @@ class TelegramWebhookHandler:
 
         urls, memo = extract_urls(text)
         if urls:
+            await self._telegram.send_message(
+                telegram_id,
+                "🤔 요청을 받았어요. 분석을 시작할게요...",
+            )
             for url in urls:
                 logger.info(f"Processing URL from {telegram_id}: {url}")
                 background_tasks.add_task(self._save_link_uc.execute, telegram_id, url, memo)
             return
+
+        if not text.startswith("/"):
+            await self._telegram.send_message(
+                telegram_id,
+                "🤔 요청을 받았어요. 분석을 시작할게요...",
+            )
 
         background_tasks.add_task(self._message_router.route, telegram_id, text)
 
@@ -73,28 +87,41 @@ class TelegramWebhookHandler:
                 chat_id,
                 "🔗 저장할 URL을 채팅에 그대로 보내주세요. 메모를 함께 적으면 같이 저장돼요.\n"
                 "예시: <code>https://example.com 이 글은 나중에 다시 보기</code>",
+                reply_markup=self._back_to_menu_markup(),
             )
         elif data == "menu:search":
             await self._telegram.send_message(
                 chat_id,
                 "🔍 <code>/search [검색어]</code> 로 저장된 링크를 찾을 수 있어요.\n"
                 "예시: <code>/search RAG 아키텍처</code>",
+                reply_markup=self._back_to_menu_markup(),
             )
         elif data == "menu:ask":
             await self._telegram.send_message(
                 chat_id,
                 "🤖 <code>/ask [질문]</code> 으로 저장된 지식을 바탕으로 답변해드려요.\n"
                 "예시: <code>/ask 내가 저장한 RAG 관련 내용 요약해줘</code>",
+                reply_markup=self._back_to_menu_markup(),
             )
         elif data == "menu:report":
             background_tasks.add_task(self._message_router.route, chat_id, "/report")
+        elif data == "nav:menu":
+            background_tasks.add_task(self._message_router.route, chat_id, "/menu")
         elif data.startswith("mark_read:"):
             try:
                 link_id = int(data.split(":", 1)[1])
                 success = await self._mark_read_uc.execute(chat_id, link_id)
                 if success:
-                    await self._telegram.send_message(chat_id, "✅ 읽음 처리되었습니다.")
+                    await self._telegram.send_message(
+                        chat_id,
+                        "✅ 읽음 처리되었습니다.",
+                        reply_markup=self._back_to_menu_markup(),
+                    )
                 else:
-                    await self._telegram.send_message(chat_id, "링크를 찾을 수 없습니다.")
+                    await self._telegram.send_message(
+                        chat_id,
+                        "링크를 찾을 수 없습니다.",
+                        reply_markup=self._back_to_menu_markup(),
+                    )
             except Exception as exc:
                 logger.warning(f"mark_read callback failed: {exc}")

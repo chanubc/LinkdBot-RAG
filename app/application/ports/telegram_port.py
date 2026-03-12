@@ -7,7 +7,12 @@ class TelegramPort(ABC):
     """Telegram API 통신 Port."""
 
     @abstractmethod
-    async def send_message(self, chat_id: int, text: str) -> None:
+    async def send_message(
+        self,
+        chat_id: int,
+        text: str,
+        reply_markup: dict | None = None,
+    ) -> None:
         pass
 
     @abstractmethod
