@@ -47,7 +47,7 @@ class SaveLinkUseCase:
                 return
 
             # 0. 즉시 피드백 (사용자에게 처리 시작 알림)
-            await self._telegram.send_message(telegram_id, "🔗 링크를 저장하는 중이에요...")
+            await self._telegram.send_message(telegram_id, "🔗 링크 내용 스크랩을 시작했어요.")
 
             # 1. Scrape
             scraped_content, content_source, og_description, og_title = _normalize_scrape_result(
