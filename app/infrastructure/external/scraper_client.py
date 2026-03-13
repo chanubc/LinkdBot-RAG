@@ -5,11 +5,11 @@ from app.application.ports.scraper_port import ScraperPort
 
 
 class ScraperRepository(ScraperPort):
-    async def scrape(self, url: str) -> tuple[str, str, str]:
+    async def scrape(self, url: str) -> tuple[str, str, str, str]:
         """OG 메타태그 기반 콘텐츠 추출.
 
         Returns:
-            (content, "og", og_description)
+            (content, "og", og_description, og_title)
         """
         headers = {"User-Agent": "Mozilla/5.0 (compatible; LinkdBot/1.0)"}
         async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:

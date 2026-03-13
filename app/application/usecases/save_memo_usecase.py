@@ -82,7 +82,7 @@ class SaveMemoUseCase:
                 title=memo[:50],
                 category="Memo",
                 keywords=[],
-                summary="",
+                description="",
                 url=None,
                 memo=memo,
             )

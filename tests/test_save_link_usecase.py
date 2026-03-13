@@ -5,7 +5,7 @@ import pytest
 
 from app.application.usecases.save_link_usecase import SaveLinkUseCase
 from app.domain.entities.content_analysis import ContentAnalysis
-from app.utils.text import split_chunks, split_markdown
+from app.utils.text import split_markdown
 
 
 @pytest.fixture
