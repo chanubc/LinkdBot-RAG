@@ -6,7 +6,7 @@ import streamlit as st
 from dashboard.api_client import DashboardAPIClient
 from dashboard.logger import logger
 
-CATEGORIES = ["전체", "AI", "Dev", "Career", "Business", "Science", "Other", "Memo"]
+CATEGORIES = ["전체", "AI", "Dev", "Career", "Business", "Science", "Design", "Health", "Productivity", "Education", "Other", "Memo"]
 
 
 def render(client: DashboardAPIClient) -> None:

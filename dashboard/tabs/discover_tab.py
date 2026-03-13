@@ -7,7 +7,7 @@ import streamlit as st
 from dashboard.api_client import DashboardAPIClient, cached_get_reactivation
 from dashboard.logger import logger
 
-CATEGORIES = ["전체", "AI", "Dev", "Career", "Business", "Science", "Other"]
+CATEGORIES = ["전체", "AI", "Dev", "Career", "Business", "Science", "Design", "Health", "Productivity", "Education", "Other"]
 
 
 def render(client: DashboardAPIClient) -> None:
