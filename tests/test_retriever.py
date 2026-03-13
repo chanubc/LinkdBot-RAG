@@ -12,13 +12,13 @@ def make_retriever():
     return HybridRetriever(openai=openai, chunk_repo=chunk_repo), chunk_repo
 
 
-def _make_result(link_id, title, keywords, dense_score, content_source="jina"):
+def _make_result(link_id, title, keywords, dense_score, content_source="jina", similarity=None):
     return {
         "link_id": link_id,
         "title": title,
         "keywords": json.dumps(keywords),
         "dense_score": dense_score,
-        "similarity": dense_score * 0.7,
+        "similarity": dense_score * 0.7 if similarity is None else similarity,
         "content_source": content_source,
         "url": f"https://example.com/{link_id}",
         "summary": "",
@@ -46,7 +46,14 @@ async def test_og_source_has_lower_keyword_weight():
     """content_source='og'인 경우 keyword_weight가 0.1로 낮아야 한다."""
     retriever, chunk_repo = make_retriever()
     chunk_repo.search_similar.return_value = [
-        _make_result(1, "테스트", ["하나증권", "채용"], dense_score=0.5, content_source="og"),
+        _make_result(
+            1,
+            "테스트",
+            ["하나증권", "채용"],
+            dense_score=0.5,
+            content_source="og",
+            similarity=0.5,
+        ),
     ]
 
     results = await retriever.retrieve(user_id=111, query="하나증권 채용", top_k=5)
@@ -60,7 +67,14 @@ async def test_jina_source_has_higher_keyword_weight():
     """content_source='jina'인 경우 keyword_weight가 0.3이어야 한다."""
     retriever, chunk_repo = make_retriever()
     chunk_repo.search_similar.return_value = [
-        _make_result(1, "테스트", ["하나증권", "채용"], dense_score=0.5, content_source="jina"),
+        _make_result(
+            1,
+            "테스트",
+            ["하나증권", "채용"],
+            dense_score=0.5,
+            content_source="jina",
+            similarity=0.5,
+        ),
     ]
 
     results = await retriever.retrieve(user_id=111, query="하나증권 채용", top_k=5)
@@ -145,9 +159,9 @@ async def test_same_link_deduped():
     """같은 link_id의 여러 chunk가 결과에 1개만 남아야 한다."""
     retriever, chunk_repo = make_retriever()
     chunk_repo.search_similar.return_value = [
-        _make_result(1, "하나증권 공고", ["하나증권", "채용공고"], dense_score=0.80),
-        _make_result(1, "하나증권 공고", ["하나증권", "채용공고"], dense_score=0.75),
-        _make_result(2, "파이썬 로깅", ["Python", "로깅"], dense_score=0.80),
+        _make_result(1, "하나증권 공고", ["하나증권", "채용공고"], dense_score=0.80, similarity=0.80),
+        _make_result(1, "하나증권 공고", ["하나증권", "채용공고"], dense_score=0.75, similarity=0.75),
+        _make_result(2, "파이썬 로깅", ["Python", "로깅"], dense_score=0.80, similarity=0.80),
     ]
 
     results = await retriever.retrieve(user_id=111, query="하나증권", top_k=5)
@@ -295,3 +309,68 @@ async def test_og_links_empty_when_no_summary_embeddings():
 
     assert len(results) == 1
     assert results[0]["link_id"] == 1
+
+
+@pytest.mark.asyncio
+async def test_title_entity_match_boosts_result():
+    """브랜드명이 keywords에 없고 title에만 있어도 해당 링크가 1위여야 한다.
+
+    "롯데"가 keywords에 없더라도 title "롯데이노베이트..."에서 매칭되어
+    dense가 약간 낮은 하나증권보다 높게 랭킹되어야 한다.
+    """
+    retriever, chunk_repo = make_retriever()
+    chunk_repo.search_similar.return_value = [
+        # 하나증권: dense 높지만 "롯데" 없음
+        _make_result(2, "하나증권 2026 신입사원 공개채용",
+                     ["하나증권", "채용공고", "금융", "신입", "취업"], dense_score=0.55),
+        # 롯데이노베이트: dense 낮지만 title에 "롯데" 있음 (keywords엔 없음)
+        _make_result(1, "롯데이노베이트 2026 신입 공채",
+                     ["채용공고", "신입사원", "IT서비스", "취업", "공고"], dense_score=0.50),
+    ]
+
+    results = await retriever.retrieve(user_id=111, query="롯데 채용", top_k=5)
+
+    assert results[0]["link_id"] == 1, "title에 '롯데' 있는 링크가 1위여야 함"
+
+
+@pytest.mark.asyncio
+async def test_title_match_works_even_when_keywords_missing():
+    """keywords가 비어도 title 매칭으로 overlap 점수가 계산되어야 한다."""
+    retriever, chunk_repo = make_retriever()
+    no_keyword = _make_result(1, "롯데이노베이트 채용", [], dense_score=0.50)
+    no_keyword["keywords"] = None
+    unrelated = _make_result(2, "하나증권 채용", [], dense_score=0.55)
+    unrelated["keywords"] = None
+    chunk_repo.search_similar.return_value = [unrelated, no_keyword]
+
+    results = await retriever.retrieve(user_id=111, query="롯데 채용", top_k=5)
+
+    assert results[0]["link_id"] == 1
+
+
+@pytest.mark.asyncio
+async def test_db_fts_signal_preserved_in_reranking():
+    """DB의 FTS(sparse) 점수가 retriever 재랭킹에서 사라지지 않아야 한다.
+
+    query와 keyword/title 매칭이 둘 다 없는 상황에서,
+    DB similarity(dense*0.7 + sparse*0.3)를 base로 사용하면
+    FTS가 올려준 link1이 dense만 높은 link2보다 높은 최종 순위를 받아야 한다.
+    """
+    retriever, chunk_repo = make_retriever()
+
+    # link1: dense 낮지만 FTS가 올려줘서 DB similarity 높음
+    link1 = {**_make_result(1, "문서 알파", ["알파", "베타", "감마"], dense_score=0.40)}
+    link1["similarity"] = 0.65  # FTS boost
+
+    # link2: dense 높지만 FTS 없음 → similarity ≈ dense*0.7
+    link2 = {**_make_result(2, "문서 델타", ["델타", "엡실론", "제타"], dense_score=0.58)}
+    link2["similarity"] = 0.41
+
+    chunk_repo.search_similar.return_value = [link2, link1]  # DB dense 기준 2→1
+
+    # query가 두 링크 keywords/title 모두에 매칭 안 됨 → overlap=0, base score만으로 승부
+    results = await retriever.retrieve(user_id=111, query="무관한XYZ검색어", top_k=5)
+
+    # FTS 보존: similarity 기준 link1(0.65) > link2(0.41) → link1 1위
+    # FTS 미보존: dense 기준 link2(0.58) > link1(0.40) → link2 1위
+    assert results[0]["link_id"] == 1, "FTS boost된 link1이 1위여야 함"

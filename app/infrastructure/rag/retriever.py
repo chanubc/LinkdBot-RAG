@@ -83,7 +83,7 @@ def _token_matches(query_token: str, keyword: str) -> bool:
 
 
 def _rescore_with_keywords(results: list[dict], query: str) -> list[dict]:
-    """dense_score + keyword overlap으로 final_score 재산출 후 내림차순 정렬.
+    """DB similarity(base) + keyword/title overlap으로 final_score 재산출 후 내림차순 정렬.
 
     query 변형(원문/공백제거/bi-gram)별 overlap 중 최댓값을 사용.
     """
@@ -96,7 +96,6 @@ def _rescore_with_keywords(results: list[dict], query: str) -> list[dict]:
 
     rescored = []
     for r in results:
-        dense_score = r.get("dense_score", r.get("similarity", 0))
         keyword_weight = (
             _KEYWORD_WEIGHT_JINA if r.get("content_source") == "jina"
             else _KEYWORD_WEIGHT_OG
@@ -104,28 +103,32 @@ def _rescore_with_keywords(results: list[dict], query: str) -> list[dict]:
 
         overlap = 0.0
         raw_keywords = r.get("keywords")
+        title = (r.get("title") or "").lower()
+        link_keywords: list[str] = []
         if raw_keywords:
             try:
                 parsed = json.loads(raw_keywords)
-                if not isinstance(parsed, list):
-                    parsed = []
-                link_keywords = [k.lower() for k in parsed if isinstance(k, str) and k.strip()]
-                best_overlap = 0.0
-                for query_tokens in all_token_sets:
-                    if not query_tokens:
-                        continue
-                    matched = sum(
-                        1 for qt in query_tokens
-                        if any(_token_matches(qt, kw) for kw in link_keywords)
-                    )
-                    variant_overlap = matched / len(query_tokens)
-                    if variant_overlap > best_overlap:
-                        best_overlap = variant_overlap
-                overlap = best_overlap
+                if isinstance(parsed, list):
+                    link_keywords = [k.lower() for k in parsed if isinstance(k, str) and k.strip()]
             except (json.JSONDecodeError, TypeError, AttributeError):
                 pass
 
-        final_score = dense_score * (1 - keyword_weight) + overlap * keyword_weight
+        best_overlap = 0.0
+        for query_tokens in all_token_sets:
+            if not query_tokens:
+                continue
+            matched = sum(
+                1 for qt in query_tokens
+                if any(_token_matches(qt, kw) for kw in link_keywords)
+                or (len(qt) >= 2 and qt in title)
+            )
+            variant_overlap = matched / len(query_tokens)
+            if variant_overlap > best_overlap:
+                best_overlap = variant_overlap
+        overlap = best_overlap
+
+        base_score = r.get("similarity", r.get("dense_score", 0))
+        final_score = base_score * (1 - keyword_weight) + overlap * keyword_weight
         rescored.append({**r, "similarity": round(final_score, 4)})
 
     return sorted(rescored, key=lambda x: x["similarity"], reverse=True)
