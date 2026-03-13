@@ -62,14 +62,15 @@ class SaveLinkUseCase:
             await self._telegram.send_message(telegram_id, "🤖 AI가 내용을 분석하고 있어요...")
             analysis = await self._openai.analyze_content(content)
             title: str = og_title or analysis.title or url
-            ai_summary: str = analysis.summary          # bullet 요약 (Notion Content 필드)
             description: str = og_description           # og:description (Notion Summary 필드)
             category: str = analysis.category
             keywords: list[str] = analysis.keywords
             keywords_json = json.dumps(keywords, ensure_ascii=False)
 
-            # DB 및 임베딩에는 AI 요약(bullet)을 사용
-            summary: str = ai_summary or description
+            # DB/임베딩용: 문장형 요약 (고유명사/맥락 보존)
+            summary: str = analysis.semantic_summary or description
+            # Notion 본문/텔레그램 표시용: bullet 포맷
+            ai_summary: str = "\n".join(f"• {p}" for p in analysis.display_points)
 
             # 2-1. Summary + chunks 임베딩을 1회 호출로 배치 처리
             # OG fallback은 메타데이터만 있어 청킹 불필요 (description ~200자)

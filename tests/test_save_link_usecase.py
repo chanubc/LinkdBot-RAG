@@ -57,14 +57,15 @@ async def test_jina_source_embedding_batched_once_for_summary_and_chunks(save_li
 
     url = "https://example.com/post"
     content = "# Section One\nhello world from linkdbot"
-    summary = "• point one\n• point two"
+    semantic_summary = "링크드봇은 지식 관리 도구다. 섹션 원을 다룬다."
     raw_chunks = split_markdown(content)
 
     link_repo.exists_by_user_and_url.return_value = False
     scraper.scrape.return_value = (content, "jina", "", "")
     openai.analyze_content.return_value = ContentAnalysis(
         title="테스트 제목",
-        summary=summary,
+        semantic_summary=semantic_summary,
+        display_points=["point one", "point two"],
         category="AI",
         keywords=["a", "b", "c", "d", "e"],
     )
@@ -75,7 +76,7 @@ async def test_jina_source_embedding_batched_once_for_summary_and_chunks(save_li
 
     await save_link_usecase.execute(telegram_id=111, url=url, memo=None)
 
-    openai.embed.assert_called_once_with([summary] + raw_chunks)
+    openai.embed.assert_called_once_with([semantic_summary] + raw_chunks)
 
     save_link_kwargs = link_repo.save_link.call_args.kwargs
     assert save_link_kwargs["summary_embedding"] == [0.1, 0.2]
@@ -88,11 +89,11 @@ async def test_jina_source_embedding_batched_once_for_summary_and_chunks(save_li
 
 
 @pytest.mark.asyncio
-async def test_ai_summary_stored_in_db_and_notion_receives_description_separately(
+async def test_semantic_summary_stored_in_db_display_points_sent_to_notion(
     save_link_usecase,
     save_link_dependencies,
 ):
-    """ai_summary는 DB summary에 저장되고, Notion은 description/ai_summary를 분리해서 받는다."""
+    """semantic_summary는 DB summary에, display_points는 bullet 포맷으로 Notion ai_summary에 전달된다."""
     user_repo = save_link_dependencies["user_repo"]
     link_repo = save_link_dependencies["link_repo"]
     openai = save_link_dependencies["openai"]
@@ -102,14 +103,17 @@ async def test_ai_summary_stored_in_db_and_notion_receives_description_separatel
 
     og_description = "OG meta description"
     og_title = "OG Page Title"
-    ai_summary = "• point one\n• point two"
+    semantic_summary = "하나증권은 2026 신입 공채를 실시한다. AI 직무 포함 다수 부문 채용 예정이다."
+    display_points = ["AI 직무 포함 신입 공채", "지원 자격: 학사 이상", "마감: 2026-03-31"]
+    expected_ai_summary = "• AI 직무 포함 신입 공채\n• 지원 자격: 학사 이상\n• 마감: 2026-03-31"
     notion_page_url = "https://www.notion.so/workspace/child-page"
 
     link_repo.exists_by_user_and_url.return_value = False
     scraper.scrape.return_value = (og_description, "og", og_description, og_title)
     openai.analyze_content.return_value = ContentAnalysis(
         title="AI Title",
-        summary=ai_summary,
+        semantic_summary=semantic_summary,
+        display_points=display_points,
         category="AI",
         keywords=["a", "b", "c", "d", "e"],
     )
@@ -121,13 +125,13 @@ async def test_ai_summary_stored_in_db_and_notion_receives_description_separatel
 
     await save_link_usecase.execute(telegram_id=111, url="https://example.com/post", memo=None)
 
-    # DB에는 ai_summary 저장
+    # DB에는 semantic_summary 저장
     save_link_kwargs = link_repo.save_link.call_args.kwargs
-    assert save_link_kwargs["summary"] == ai_summary
+    assert save_link_kwargs["summary"] == semantic_summary
     # og_title이 title로 사용됨
     assert save_link_kwargs["title"] == og_title
 
-    # Notion은 description(og_description)과 ai_summary를 분리해서 받음
+    # Notion은 description(og_description)과 display_points 기반 bullet을 분리해서 받음
     notion.create_database_entry.assert_awaited_once_with(
         access_token="secret",
         database_id="db-123",
@@ -135,7 +139,7 @@ async def test_ai_summary_stored_in_db_and_notion_receives_description_separatel
         category="AI",
         keywords=["a", "b", "c", "d", "e"],
         description=og_description,
-        ai_summary=ai_summary,
+        ai_summary=expected_ai_summary,
         url="https://example.com/post",
         memo=None,
     )
@@ -156,7 +160,8 @@ async def test_og_source_skips_chunking(save_link_usecase, save_link_dependencie
     scraper.scrape.return_value = ("short description", "og", "short description", "Title")
     openai.analyze_content.return_value = ContentAnalysis(
         title="Title",
-        summary="• AI bullet",
+        semantic_summary="이 링크는 짧은 설명을 담고 있다.",
+        display_points=["AI 관련 내용"],
         category="Dev",
         keywords=["a", "b", "c", "d", "e"],
     )
@@ -167,8 +172,8 @@ async def test_og_source_skips_chunking(save_link_usecase, save_link_dependencie
 
     await save_link_usecase.execute(telegram_id=111, url="https://example.com", memo=None)
 
-    # summary_embedding만 (청크 없음)
-    openai.embed.assert_called_once_with(["• AI bullet"])
+    # summary_embedding만 (청크 없음) — semantic_summary 기반
+    openai.embed.assert_called_once_with(["이 링크는 짧은 설명을 담고 있다."])
     chunk_repo.save_chunks.assert_not_called()
 
 
