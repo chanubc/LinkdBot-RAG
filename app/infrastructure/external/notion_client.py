@@ -80,12 +80,11 @@ class NotionRepository(NotionPort):
 
         ai_summary는 페이지 본문(children 블록)에 bullet 형태로 삽입됨.
         """
-        summary_text = (description or (ai_summary or "")).strip()
         properties: dict = {
             "Name":     {"title": [{"text": {"content": title[:2000]}}]},
             "Category": {"select": {"name": category[:100]}},
             "Keywords": {"multi_select": [{"name": kw[:100]} for kw in keywords]},
-            "Summary":  {"rich_text": [{"text": {"content": summary_text[:2000]}}]},
+            "Summary":  {"rich_text": [{"text": {"content": description[:2000]}}]},
             "Date":     {"date": {"start": datetime.now(timezone.utc).date().isoformat()}},
         }
         if url:
