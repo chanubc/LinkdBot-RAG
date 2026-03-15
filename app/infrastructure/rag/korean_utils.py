@@ -10,6 +10,9 @@ _PARTICLES = {
     "에게", "한테", "께서",  # Indirect object
 }
 
+# Precomputed sorted particles (longest first) — avoids re-sorting on every call
+_PARTICLES_SORTED: tuple[str, ...] = tuple(sorted(_PARTICLES, key=len, reverse=True))
+
 
 def strip_particles(token: str) -> str:
     """Remove Korean particles from the end of a token.
@@ -27,7 +30,7 @@ def strip_particles(token: str) -> str:
         return token
 
     # Try longest matching particles first (for multi-character particles like "에서")
-    for particle in sorted(_PARTICLES, key=len, reverse=True):
+    for particle in _PARTICLES_SORTED:
         if token.endswith(particle):
             stripped = token[: -len(particle)]
             # Keep stripped form only if it's 2+ characters
@@ -45,7 +48,7 @@ def normalize_korean_query(query: str) -> list[str]:
     This function only strips particles.
 
     Examples:
-        "채용공고를 찾습니다" → ["채용공고", "찾합니다"] or similar
+        "채용공고를 찾습니다" → ["채용공고", "찾습니다"]
         "하나 증권" → ["하나", "증권"]
     """
     if not query or not query.strip():
