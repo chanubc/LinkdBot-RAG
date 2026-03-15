@@ -32,64 +32,67 @@ down_revision: Union[str, None] = "phase3_0005"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
+_BATCH_SIZE = 500
 
-def _morpheme_tokenize(text: str) -> str:
-    """Inline tokenizer for migration — avoids circular import with app code."""
+
+def _make_kiwi():
+    """Initialize Kiwi once per migration run.
+
+    Raises ImportError explicitly if kiwipiepy is not installed so the
+    migration fails loudly rather than silently backfilling raw text.
+    """
     try:
         from kiwipiepy import Kiwi  # type: ignore[import]
-        kiwi = Kiwi()
-        tokens = kiwi.tokenize(text)
-        return " ".join(
-            t.form for t in tokens
-            if t.tag.startswith(("NN", "VV", "SL", "XR"))
+    except ImportError:
+        raise ImportError(
+            "kiwipiepy is required for this migration. "
+            "Run: pip install kiwipiepy"
         )
-    except Exception:
-        # Fallback: return text as-is if kiwipiepy unavailable during migration
-        return text
+    return Kiwi()
+
+
+def _tokenize(kiwi, text: str) -> str:
+    tokens = kiwi.tokenize(text)
+    return " ".join(
+        t.form for t in tokens
+        if t.tag.startswith(("NN", "VV", "SL", "XR"))
+    )
 
 
 def upgrade() -> None:
     """Rebuild all existing chunk tsvectors with morpheme tokenization.
 
-    Processes chunks in batches of 500 to avoid memory/lock issues on large tables.
-    Each chunk's content is tokenized via kiwipiepy; the resulting morpheme string
-    is passed to to_tsvector('simple', ...) in PostgreSQL.
+    Uses cursor-based pagination (WHERE id > last_id) and batch executemany
+    to avoid LIMIT/OFFSET scan degradation and per-row roundtrips.
+    Kiwi is initialized once for the entire migration run.
     """
+    kiwi = _make_kiwi()
     conn = op.get_bind()
 
-    # Count total chunks for progress awareness
-    count_result = conn.execute(sa.text("SELECT COUNT(*) FROM chunks"))
-    total = count_result.scalar() or 0
-
-    if total == 0:
-        return  # No chunks to backfill
-
-    batch_size = 500
-    offset = 0
-    updated = 0
-
-    while offset < total:
+    last_id = 0
+    while True:
         rows = conn.execute(
-            sa.text("SELECT id, content FROM chunks ORDER BY id LIMIT :lim OFFSET :off"),
-            {"lim": batch_size, "off": offset},
+            sa.text(
+                "SELECT id, content FROM chunks "
+                "WHERE id > :last_id ORDER BY id LIMIT :lim"
+            ),
+            {"last_id": last_id, "lim": _BATCH_SIZE},
         ).fetchall()
 
         if not rows:
             break
 
-        for row in rows:
-            morpheme_content = _morpheme_tokenize(row.content or "")
-            conn.execute(
-                sa.text(
-                    "UPDATE chunks SET tsv = to_tsvector('simple', :mc) WHERE id = :id"
-                ),
-                {"mc": morpheme_content, "id": row.id},
-            )
-            updated += 1
+        params = [
+            {"mc": _tokenize(kiwi, row.content or ""), "id": row.id}
+            for row in rows
+        ]
+        conn.execute(
+            sa.text("UPDATE chunks SET tsv = to_tsvector('simple', :mc) WHERE id = :id"),
+            params,
+        )
 
-        offset += batch_size
+        last_id = rows[-1].id
 
-    # Rebuild GIN index statistics after bulk update
     conn.execute(sa.text("ANALYZE chunks"))
 
 
@@ -97,29 +100,28 @@ def downgrade() -> None:
     """Revert tsvectors to raw content (Phase A behaviour)."""
     conn = op.get_bind()
 
-    batch_size = 500
-    offset = 0
-
-    count_result = conn.execute(sa.text("SELECT COUNT(*) FROM chunks"))
-    total = count_result.scalar() or 0
-
-    while offset < total:
+    last_id = 0
+    while True:
         rows = conn.execute(
-            sa.text("SELECT id, content FROM chunks ORDER BY id LIMIT :lim OFFSET :off"),
-            {"lim": batch_size, "off": offset},
+            sa.text(
+                "SELECT id, content FROM chunks "
+                "WHERE id > :last_id ORDER BY id LIMIT :lim"
+            ),
+            {"last_id": last_id, "lim": _BATCH_SIZE},
         ).fetchall()
 
         if not rows:
             break
 
-        for row in rows:
-            conn.execute(
-                sa.text(
-                    "UPDATE chunks SET tsv = to_tsvector('simple', :c) WHERE id = :id"
-                ),
-                {"c": row.content or "", "id": row.id},
-            )
+        params = [
+            {"c": row.content or "", "id": row.id}
+            for row in rows
+        ]
+        conn.execute(
+            sa.text("UPDATE chunks SET tsv = to_tsvector('simple', :c) WHERE id = :id"),
+            params,
+        )
 
-        offset += batch_size
+        last_id = rows[-1].id
 
     conn.execute(sa.text("ANALYZE chunks"))
