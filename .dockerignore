@@ -7,7 +7,7 @@ __pycache__
 .superpowers
 docs
 tests
-scripts
+# scripts/ is intentionally included for one-off ops (e.g. backfill)
 *.md
 .pytest_cache
 *.pyc
