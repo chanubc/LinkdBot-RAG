@@ -92,14 +92,14 @@ flowchart TD
     A[👤 Telegram User]:::input
     B[📱 Telegram API]:::input
     C[🔗 POST /webhook]:::input
-    D[WebhookHandler\n+ TelegramWebhookHandler]:::process
-    E[MessageRouter\n+ IntentClassifier]:::process
-    F[SaveLinkUseCase\n+ Scraper + OpenAI]:::process
-    G[SearchUseCase\n+ HybridRetriever\nDense · Sparse · Rerank]:::process
-    H[KnowledgeAgent\n+ Function Calling]:::process
-    I[(🗄️ PostgreSQL\n+ pgvector)]:::storage
-    J[🧪 Jina Reader\nScraper]:::external
-    K[🤖 OpenAI API\nEmbed + Analyze]:::external
+    D[WebhookHandler<br/>+ TelegramWebhookHandler]:::process
+    E[MessageRouter<br/>+ IntentClassifier]:::process
+    F[SaveLinkUseCase<br/>+ Scraper + OpenAI]:::process
+    G["SearchUseCase<br/>+ HybridRetriever<br/>(Dense·Sparse·Rerank)"]:::process
+    H[KnowledgeAgent<br/>+ Function Calling]:::process
+    I[(🗄️ PostgreSQL<br/>+ pgvector)]:::storage
+    J[🧪 Jina Reader<br/>Scraper]:::external
+    K[🤖 OpenAI API<br/>Embed + Analyze]:::external
     L[💬 Telegram Response]:::input
 
     A --> B --> C --> D --> E
@@ -136,16 +136,16 @@ Presentation → Application → Domain
 %%{init: {"theme": "base", "look": "handDrawn", "themeVariables": {"fontFamily": "Comic Sans MS"}}}%%
 flowchart TD
     subgraph PRES ["📱 Presentation"]
-        P["FastAPI Routers · DI\nHTTP Endpoints"]
+        P["FastAPI Routers · DI<br/>HTTP Endpoints"]
     end
     subgraph APP ["⚙️ Application"]
-        A["UseCases · Services\nPorts / Interfaces"]
+        A["UseCases · Services<br/>Ports / Interfaces"]
     end
     subgraph DOM ["🧩 Domain"]
-        D["Pure Logic · Entities\nRepository Interfaces"]
+        D["Pure Logic · Entities<br/>Repository Interfaces"]
     end
     subgraph INFRA ["🔧 Infrastructure"]
-        I["SQLAlchemy · LLM Clients\nRAG Pipeline · Adapters"]
+        I["SQLAlchemy · LLM Clients<br/>RAG Pipeline · Adapters"]
     end
 
     PRES -->|depends| APP
