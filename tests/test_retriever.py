@@ -376,7 +376,7 @@ async def test_db_fts_signal_preserved_in_reranking():
     assert results[0]["link_id"] == 1, "FTS boost된 link1이 1위여야 함"
 
 
-# ===== Korean-specific tests for particle stripping and alias handling =====
+# ===== Korean-specific tests for particle stripping =====
 
 
 @pytest.mark.asyncio
@@ -458,3 +458,34 @@ async def test_korean_over_match_prevention():
 
     # With equal dense scores, proper keyword match should boost link2
     assert results[0]["link_id"] == 2, "Over-match prevention: '증권' alone should not match"
+
+
+@pytest.mark.asyncio
+async def test_korean_particle_stripping_score_range():
+    """Particle stripping should produce a meaningful score boost over no-match baseline.
+
+    Regression guard: ensures the final_score after particle-based keyword boost
+    stays within expected range and meaningfully exceeds the unmatched document.
+    """
+    retriever, chunk_repo = make_retriever()
+    chunk_repo.search_similar.return_value = [
+        _make_result(1, "NH투자증권 신입 공채", ["채용공고", "nh투자증권", "신입"], dense_score=0.58),
+        _make_result(2, "무관 문서", ["Python", "백엔드"], dense_score=0.58),
+    ]
+
+    results = await retriever.retrieve(user_id=111, query="채용공고를 찾아줘", top_k=5)
+
+    assert results[0]["link_id"] == 1, "Particle-stripped keyword match should rank link1 first"
+
+    top_score = results[0]["similarity"]
+    # _make_result sets similarity = dense_score * 0.7 = 0.406 (base_score)
+    # _rescore: final = 0.406 * 0.7 + overlap * 0.3
+    # With overlap=0.5 ("채용공고를"→"채용공고" matches): 0.406*0.7 + 0.5*0.3 = 0.434
+    # Without particle stripping (overlap=0): 0.406 * 0.7 = 0.284
+    assert 0.40 <= top_score <= 0.55, f"Expected score in [0.40, 0.55], got {top_score}"
+
+    # Boosted doc should score meaningfully higher than unmatched doc
+    if len(results) >= 2:
+        assert results[0]["similarity"] > results[1]["similarity"], (
+            "Particle-matched doc should score higher than unmatched doc"
+        )
