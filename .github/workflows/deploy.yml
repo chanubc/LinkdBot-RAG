@@ -34,4 +34,5 @@ jobs:
             git fetch origin
             git checkout -B main origin/main
             docker image prune -f
+            docker builder prune -f
             docker compose up -d --build

@@ -12,6 +12,7 @@ Safe to run multiple times (idempotent).
 
 from __future__ import annotations
 
+import asyncio
 import os
 import sys
 
@@ -20,41 +21,29 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import sqlalchemy as sa
 from dotenv import load_dotenv
+from sqlalchemy.ext.asyncio import create_async_engine
+
+from app.infrastructure.rag.korean_utils import morpheme_tokenize
 
 load_dotenv()
 
 _BATCH_SIZE = 500
 
 
-def _make_kiwi():
-    try:
-        from kiwipiepy import Kiwi  # type: ignore[import]
-    except ImportError:
-        raise ImportError("kiwipiepy is required. Run: pip install kiwipiepy")
-    return Kiwi()
-
-
-def _tokenize(kiwi, text: str) -> str:
-    tokens = kiwi.tokenize(text)
-    return " ".join(
-        t.form for t in tokens
-        if t.tag.startswith(("NN", "VV", "SL", "XR"))
-    )
-
-
-def main() -> None:
+async def main() -> None:
     database_url = os.environ.get("DATABASE_URL", "")
     if not database_url:
         raise RuntimeError("DATABASE_URL environment variable is not set")
 
-    # asyncpg URL → sync psycopg2-compatible URL
-    sync_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
+    # Ensure asyncpg dialect
+    if not database_url.startswith("postgresql+asyncpg://"):
+        database_url = database_url.replace("postgresql://", "postgresql+asyncpg://")
 
-    engine = sa.create_engine(sync_url)
-    kiwi = _make_kiwi()
+    engine = create_async_engine(database_url)
 
-    with engine.connect() as conn:
-        total = conn.execute(sa.text("SELECT COUNT(*) FROM chunks")).scalar() or 0
+    async with engine.connect() as conn:
+        result = await conn.execute(sa.text("SELECT COUNT(*) FROM chunks"))
+        total = result.scalar() or 0
         if total == 0:
             print("No chunks to backfill.")
             return
@@ -64,36 +53,39 @@ def main() -> None:
         updated = 0
 
         while True:
-            rows = conn.execute(
-                sa.text(
-                    "SELECT id, content FROM chunks "
-                    "WHERE id > :last_id ORDER BY id LIMIT :lim"
-                ),
-                {"last_id": last_id, "lim": _BATCH_SIZE},
+            rows = (
+                await conn.execute(
+                    sa.text(
+                        "SELECT id, content FROM chunks "
+                        "WHERE id > :last_id ORDER BY id LIMIT :lim"
+                    ),
+                    {"last_id": last_id, "lim": _BATCH_SIZE},
+                )
             ).fetchall()
 
             if not rows:
                 break
 
             params = [
-                {"mc": _tokenize(kiwi, row.content or ""), "id": row.id}
+                {"mc": morpheme_tokenize(row.content or ""), "id": row.id}
                 for row in rows
             ]
-            conn.execute(
+            await conn.execute(
                 sa.text("UPDATE chunks SET tsv = to_tsvector('simple', :mc) WHERE id = :id"),
                 params,
             )
-            conn.commit()
+            await conn.commit()
 
             updated += len(rows)
             last_id = rows[-1].id
             print(f"  {updated}/{total} done...")
 
-        conn.execute(sa.text("ANALYZE chunks"))
-        conn.commit()
+        await conn.execute(sa.text("ANALYZE chunks"))
+        await conn.commit()
 
+    await engine.dispose()
     print(f"Done. {updated} chunks updated.")
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
