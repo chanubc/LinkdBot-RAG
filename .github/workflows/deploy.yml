@@ -28,10 +28,11 @@ jobs:
           username: ${{ secrets.GCP_USER }}
           key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
           port: 22
+          command_timeout: 30m
           script: |
             cd ~/linkdbot-rag
             git fetch origin
             git checkout -B main origin/main
-            docker system prune -f
+            docker image prune -f
             docker compose up -d --build
             docker compose exec -T app alembic upgrade head
