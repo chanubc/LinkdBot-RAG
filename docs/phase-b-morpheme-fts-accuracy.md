@@ -36,66 +36,58 @@ plainto_tsquery('simple', '채용 공고') → '채용' & '공고'
 
 ---
 
-## 📊 Before / After 점수 비교
+## 📊 실측 벤치마크 결과
 
-> sparse_score 기준 (FTS 레이어 단독 효과)
-> final_score = 0.7 × dense + 0.3 × (0.5 × sparse_norm + 0.5 × keyword_overlap)
+> **측정 환경**: 라이브 DB (2,614 chunks), `scripts/benchmark_fts_accuracy.py`
+> **Ground truth**: 쿼리 어근이 chunk content에 포함된 chunks
+> **Before**: `plainto_tsquery('simple', raw_query)`
+> **After**: `plainto_tsquery('simple', morpheme_tokenize(query))`
 
-### 복합어 쿼리
+### 쿼리별 상세 결과
 
-| 쿼리 | 저장 tsvector 토큰 | Before sparse | After sparse | 향상 |
-|------|-------------------|:-------------:|:------------:|:----:|
-| `채용공고를` | 채용, 공고, 안내 | 0 | ✅ 매칭 | 0 → signal |
-| `개발자채용` | 개발자, 채용, 공고 | 0 | ✅ 매칭 | 0 → signal |
-| `입사지원서` | 입사, 지원, 서류, 안내 | 0 | ✅ 매칭 | 0 → signal |
+| 쿼리 | 형태소 변환 | 관련 chunks | P@5 Before | P@5 After | MRR Before | MRR After | NDCG@5 Before | NDCG@5 After | 1위 Before | 1위 After |
+|------|------------|:-----------:|:----------:|:---------:|:----------:|:---------:|:-------------:|:------------:|:----------:|:---------:|
+| `채용공고를` | `채용 공고` | 114 | 0.0000 | **1.0000** | 0.0000 | **1.0000** | 0.0000 | **1.0000** | ❌ | ✅ |
+| `개발자채용` | `개발자 채용` | 160 | 0.0000 | **0.4000** | 0.0000 | **1.0000** | 0.0000 | **0.5531** | ❌ | ✅ |
+| `입사지원서` | `입사 지원서` | 173 | 0.0000 | **1.0000** | 0.0000 | **1.0000** | 0.0000 | **1.0000** | ❌ | ✅ |
+| `백엔드에서` | `백 엔드` | 4 | 0.0000 | **0.8000** | 0.0000 | **1.0000** | 0.0000 | **1.0000** | ❌ | ✅ |
+| `증권에서` | `증권` | 17 | 0.0000 | **1.0000** | 0.0000 | **1.0000** | 0.0000 | **1.0000** | ❌ | ✅ |
+| `스타트업에서의` | `스타트업` | 5 | 0.0000 | **1.0000** | 0.0000 | **1.0000** | 0.0000 | **1.0000** | ❌ | ✅ |
+| `머신러닝으로` | `머신 러닝` | 9 | 0.0000 | **0.8000** | 0.0000 | **1.0000** | 0.0000 | **0.8304** | ❌ | ✅ |
+| `AI채용` | `AI 채용` | 1,481 | 0.0000 | **1.0000** | 0.0000 | **1.0000** | 0.0000 | **1.0000** | ❌ | ✅ |
+| `Python백엔드` | `Python 백 엔드` | 148 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | ❌ | ❌ |
+| `LLM활용` | `LLM 활용` | 142 | 0.0000 | **1.0000** | 0.0000 | **1.0000** | 0.0000 | **1.0000** | ❌ | ✅ |
 
-**이유**: simple 사전은 `채용공고를`을 단일 토큰으로 처리 → tsvector에 없음
+### 종합 지표
 
----
+| 지표 | Before (Phase A) | After (Phase B) | 향상 |
+|------|:----------------:|:---------------:|:----:|
+| **P@5** | 0.0000 | **0.8000** | 0 → 0.80 |
+| **MRR** | 0.0000 | **0.9000** | 0 → 0.90 |
+| **NDCG@5** | 0.0000 | **0.8384** | 0 → 0.84 |
+| **1위 정확도** | 0/10 (0%) | **9/10 (90%)** | **+900%p** |
 
-### 조사 포함 쿼리
-
-| 쿼리 | 저장 tsvector 토큰 | Before sparse | After sparse | 향상 |
-|------|-------------------|:-------------:|:------------:|:----:|
-| `증권에서` | 증권, 거래, 플랫폼 | 0 | ✅ 매칭 | 0 → signal |
-| `백엔드에서` | 백엔드, 개발, 경력 | 0 | ✅ 매칭 | 0 → signal |
-| `스타트업에서의` | 스타트업, 채용, 개발자 | 0 | ✅ 매칭 | 0 → signal |
-| `머신러닝으로` | 머신러닝, AI, 데이터 | 0 | ✅ 매칭 | 0 → signal |
-
----
-
-### 한영 혼합 쿼리
-
-| 쿼리 | 저장 tsvector 토큰 | Before sparse | After sparse | 향상 |
-|------|-------------------|:-------------:|:------------:|:----:|
-| `AI채용` | AI, 채용, 스타트업 | 0 (단일 토큰) | ✅ 매칭 | 0 → signal |
-| `Python백엔드` | Python, 백엔드, 개발 | 0 | ✅ 매칭 | 0 → signal |
-| `LLM활용` | LLM, 활용, AI | 0 | ✅ 매칭 | 0 → signal |
-
-**이유**: `AI채용`은 simple 사전에서 `ai채용` 단일 토큰 → kiwipiepy가 `AI` + `채용`으로 분리
+> **Before는 10개 쿼리 전부 sparse_score = 0** — FTS 레이어가 완전히 무력했음
 
 ---
 
-### 정밀도(Precision) 유지 확인
+## ⚠️ 예외 케이스: `Python백엔드`
 
-| 쿼리 | 무관한 컨텐츠 | Before | After | 판정 |
-|------|-------------|:------:|:-----:|:----:|
-| `채용공고를` | 파이썬 비동기 프로그래밍 | no match | no match | ✅ 오매칭 없음 |
-| `증권에서` | Python asyncio 완전 정복 | no match | no match | ✅ 오매칭 없음 |
+`Python백엔드` → kiwipiepy가 `Python 백 엔드`로 분리 (백엔드를 "백" + "엔드"로 잘못 분리)
+
+- `백 엔드`로 조회 시 content에 "백"과 "엔드"가 함께 있는 chunks가 없어서 0점
+- **원인**: `백엔드`는 영어 loanword지만 한글 표기라 kiwipiepy가 음절 단위로 분리
+- **Phase C 개선 대상**: 외래어 사전 추가 또는 사용자 정의 사전(kiwipiepy `add_user_word`)
 
 ---
 
-## 📈 종합 효과 요약
+## 📈 Phase A vs Phase B 레이어 비교
 
-| 케이스 | Phase A (particle strip) | Phase B (morpheme FTS) | 누적 효과 |
-|--------|:------------------------:|:----------------------:|:---------:|
-| 복합어 쿼리 | keyword overlap 개선 | ⭐ sparse signal 복구 | 양쪽 모두 작동 |
-| 조사 포함 쿼리 | keyword overlap 개선 | ⭐ sparse signal 복구 | 양쪽 모두 작동 |
-| 한영 혼합 | keyword overlap 개선 | ⭐ sparse signal 복구 | 양쪽 모두 작동 |
-| 정밀도 | 유지 | 유지 | 회귀 없음 ✅ |
-| 순수 영어 쿼리 | 해당 없음 | 해당 없음 | 변화 없음 |
-
-**Phase B 핵심**: sparse_score가 `0`에서 `실질 signal`로 복구됨 → 기존에 dense에만 의존하던 검색이 FTS 결과도 활용
+| 검색 레이어 | Phase A | Phase B |
+|-----------|:-------:|:-------:|
+| Dense (pgvector) | ✅ 정상 | ✅ 정상 |
+| Sparse FTS | ❌ 복합어/조사 쿼리 0점 | ✅ 90% 복구 |
+| Keyword rescoring | ✅ 조사 처리 | ✅ 유지 |
 
 ---
 
@@ -111,11 +103,9 @@ app/infrastructure/repository/
       ├── save_chunks: to_tsvector('simple', morpheme_tokenize(content))
       └── search_similar: plainto_tsquery('simple', morpheme_tokenize(query_text))
 
-alembic/versions/
-  └── 0006_rebuild_tsvectors_with_morpheme_tokenization.py  # no-op (DDL 없음)
-
 scripts/
-  └── backfill_morpheme_tsvectors.py  # 기존 chunks 1회 백필
+  ├── backfill_morpheme_tsvectors.py   # 기존 chunks 1회 백필 (완료: 2,614건)
+  └── benchmark_fts_accuracy.py        # 정확도 벤치마크
 ```
 
 ---
@@ -123,20 +113,12 @@ scripts/
 ## 🧪 테스트
 
 ```bash
+# 단위 테스트
 pytest tests/test_phase_b_morpheme_accuracy.py -v
-# 13 passed — before/after accuracy + recall/precision parametrize
-```
 
-| 테스트 | 검증 내용 |
-|--------|---------|
-| `test_morpheme_tokenize_splits_compound_word` | `채용공고` → `채용`, `공고` 분리 |
-| `test_morpheme_tokenize_strips_particle_from_compound` | `채용공고를` → raw form 제거 |
-| `test_morpheme_tokenize_simple_noun` | `증권에서` → `증권` |
-| `test_morpheme_tokenize_preserves_english` | `AI 개발자를` → `AI`, `개발자` 유지 |
-| `test_fts_accuracy_before_after_compound_query` | no-match → match 시뮬레이션 |
-| `test_fts_accuracy_before_after_particle_query` | no-match → match 시뮬레이션 |
-| `test_morpheme_tokenize_precision_not_degraded` | 무관 쿼리 false positive 없음 |
-| `test_morpheme_tokenize_recall_precision_table` | 4개 케이스 parametrize |
+# 라이브 벤치마크
+python scripts/benchmark_fts_accuracy.py --user-id <TELEGRAM_ID>
+```
 
 ---
 
