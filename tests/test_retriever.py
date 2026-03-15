@@ -374,3 +374,87 @@ async def test_db_fts_signal_preserved_in_reranking():
     # FTS 보존: similarity 기준 link1(0.65) > link2(0.41) → link1 1위
     # FTS 미보존: dense 기준 link2(0.58) > link1(0.40) → link2 1위
     assert results[0]["link_id"] == 1, "FTS boost된 link1이 1위여야 함"
+
+
+# ===== Korean-specific tests for particle stripping and alias handling =====
+
+
+@pytest.mark.asyncio
+async def test_korean_particle_attached_query_matches_keyword():
+    """Particle-attached query '채용공고를' should match keyword '채용공고'.
+
+    Demonstrates: _token_matches now handles particle-stripped exact match.
+    """
+    retriever, chunk_repo = make_retriever()
+    chunk_repo.search_similar.return_value = [
+        _make_result(1, "채용 정보", ["채용공고", "신입사원"], dense_score=0.50),
+        _make_result(2, "무관 문서", ["Python", "로깅"], dense_score=0.65),
+    ]
+
+    # Query has particle "를" attached
+    results = await retriever.retrieve(user_id=111, query="채용공고를", top_k=5)
+
+    # Particle-stripped '채용공고' should match keyword exactly → boost link1 above link2
+    assert results[0]["link_id"] == 1, "Particle-attached query should match stripped keyword"
+
+
+@pytest.mark.asyncio
+async def test_korean_particle_attached_query_matches_title():
+    """Particle-attached query '롯데에서' should match title containing '롯데'.
+
+    Demonstrates: Title matching now benefits from particle stripping in query variants.
+    """
+    retriever, chunk_repo = make_retriever()
+    chunk_repo.search_similar.return_value = [
+        _make_result(1, "롯데이노베이트 채용공고", ["채용", "신입", "공고"], dense_score=0.50),
+        _make_result(2, "하나증권 채용공고", ["하나증권", "채용"], dense_score=0.60),
+    ]
+
+    # Query "롯데에서" should strip to "롯데" → match in title
+    results = await retriever.retrieve(user_id=111, query="롯데에서", top_k=5)
+
+    assert results[0]["link_id"] == 1, "Particle-stripped query should match title"
+
+
+
+
+@pytest.mark.asyncio
+async def test_korean_mixed_korean_english_with_particles():
+    """Mixed Korean/English query 'AI개발자를' should match 'AI개발자' keyword.
+
+    Demonstrates: Particle stripping works on mixed text.
+    """
+    retriever, chunk_repo = make_retriever()
+    chunk_repo.search_similar.return_value = [
+        _make_result(1, "AI 개발", ["AI개발자", "신입", "기술"], dense_score=0.50),
+        _make_result(2, "웹개발", ["웹개발", "풀스택"], dense_score=0.60),
+    ]
+
+    # 'AI개발자를' should strip to 'AI개발자' → match keyword
+    results = await retriever.retrieve(user_id=111, query="AI개발자를", top_k=5)
+
+    assert results[0]["link_id"] == 1, "Mixed Korean/English query should strip particles"
+
+
+@pytest.mark.asyncio
+async def test_korean_over_match_prevention():
+    """Prevent over-matching: query '하나 증권 공고' compact variant should NOT over-match '증권'.
+
+    Demonstrates: Conditional bidirectional matching prevents compact variant over-matching.
+
+    Query variants: "하나 증권 공고", "하나증권공고", "하나증권 공고", ...
+    When matching against keywords, "하나증권" should be matched (exact after strip),
+    but NOT "증권" alone (would be kw-in-qt, which we restrict).
+    """
+    retriever, chunk_repo = make_retriever()
+    chunk_repo.search_similar.return_value = [
+        _make_result(1, "증권 분석", ["증권", "투자", "분석"], dense_score=0.50),
+        _make_result(2, "하나증권 채용", ["하나증권", "채용공고"], dense_score=0.50),
+    ]
+
+    # Query "하나 증권 공고" generates variants including "하나증권공고"
+    # Matching: "하나증권공고" should match "하나증권" (not "증권" alone)
+    results = await retriever.retrieve(user_id=111, query="하나 증권 공고", top_k=5)
+
+    # With equal dense scores, proper keyword match should boost link2
+    assert results[0]["link_id"] == 2, "Over-match prevention: '증권' alone should not match"

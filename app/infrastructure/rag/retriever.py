@@ -2,6 +2,7 @@ import json
 
 from app.domain.repositories.i_chunk_repository import IChunkRepository
 from app.application.ports.ai_analysis_port import AIAnalysisPort
+from app.infrastructure.rag.korean_utils import strip_particles
 
 _KEYWORD_WEIGHT_JINA = 0.3
 _KEYWORD_WEIGHT_OG = 0.1
@@ -46,21 +47,47 @@ def _merge_results(chunk_results: list[dict], og_results: list[dict]) -> list[di
 
 
 def _build_query_variants(query: str) -> list[str]:
-    """원문 + 공백제거본 + bi-gram 결합본으로 query 변형 생성.
+    """원문 + 공백제거본 + bi-gram + particle-stripped 변형 생성.
 
-    예: "하나 증권 공고" → ["하나 증권 공고", "하나증권공고", "하나증권 공고", "하나 증권공고"]
+    예: "채용공고를 찾습니다" → includes:
+      - "채용공고를 찾습니다" (original)
+      - "채용공고를찾습니다" (compact)
+      - "채용공고를 찾습니다" (bi-gram if applicable)
+      - "채용공고 찾습니다" (particle-stripped)
+
+    Korean particles (을, 를, 에서, etc.) are stripped from each token.
     """
     base = query.strip()
     variants = [base]
 
-    compact = "".join(base.split())
+    # Strip particles from all tokens
+    tokens = base.split()
+    stripped_tokens = [strip_particles(t) for t in tokens]
+    stripped_base = " ".join(stripped_tokens)
+    if stripped_base and stripped_base not in variants:
+        variants.append(stripped_base)
+
+    # Compact version from original tokens
+    compact = "".join(tokens)
     if compact and compact not in variants:
         variants.append(compact)
 
-    tokens = base.split()
+    # Compact version from particle-stripped tokens
+    compact_stripped = "".join(stripped_tokens)
+    if compact_stripped and compact_stripped not in variants:
+        variants.append(compact_stripped)
+
+    # Bi-gram combinations from original tokens
     for i in range(len(tokens) - 1):
         combined = tokens[i] + tokens[i + 1]
         variant = " ".join(tokens[:i] + [combined] + tokens[i + 2:])
+        if variant not in variants:
+            variants.append(variant)
+
+    # Bi-gram combinations from stripped tokens
+    for i in range(len(stripped_tokens) - 1):
+        combined = stripped_tokens[i] + stripped_tokens[i + 1]
+        variant = " ".join(stripped_tokens[:i] + [combined] + stripped_tokens[i + 2:])
         if variant not in variants:
             variants.append(variant)
 
@@ -68,17 +95,40 @@ def _build_query_variants(query: str) -> list[str]:
 
 
 def _token_matches(query_token: str, keyword: str) -> bool:
-    """부분 문자열 포함 여부. query_token이 keyword 안에 있는 방향만 허용.
+    """부분 문자열 포함 여부, Korean particle 처리 포함.
 
-    keyword in query_token 방향은 compact variant에서 과도한 boost를 유발하므로 제외.
-    예: "공고" in "채용공고" → 허용 / "하나증권" in "하나증권공고" → 차단
+    조건부 bidirectional matching으로 particle-attached tokens를 처리:
+    1. Exact match (after lowercasing)
+    2. Query token as substring of keyword (original logic)
+    3. Exact match after particle stripping: "채용공고를" (stripped) == keyword "채용공고"
+    4. Stripped query as substring of keyword (only if both meaningful)
+
+    keyword in query_token 방향은 conditional only (정확히 strip 후 exact만 허용)
+    → compact variant에서의 과도한 boost 방지.
+    예: "공고" in "채용공고" → 허용 / "하나증권" in "하나증권공고" → 차단 (조건1만)
     """
     q = query_token.lower()
     k = keyword.lower()
+
+    # 1. Exact match
     if q == k:
         return True
+
+    # 2. Query token is substring of keyword (existing logic)
     if len(q) >= 2 and q in k:
         return True
+
+    # 3. Conditional bidirectional: exact match after particle stripping
+    #    This handles "채용공고를" → "채용공고" == keyword, but prevents
+    #    "하나증권공고" from matching keyword "증권" (only exact after strip)
+    q_stripped = strip_particles(q)
+    if q_stripped != q and q_stripped == k:
+        return True
+
+    # 4. Particle-stripped substring matching (safe, only if both meaningful)
+    if len(q_stripped) >= 2 and len(k) >= 2 and q_stripped in k:
+        return True
+
     return False
 
 
