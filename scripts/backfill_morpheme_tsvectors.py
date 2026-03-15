@@ -24,11 +24,35 @@ from dotenv import load_dotenv
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from app.infrastructure.rag.korean_utils import morpheme_tokenize
-
 load_dotenv()
 
 _BATCH_SIZE = 500
+_SUPPORTED_SCHEMES = ("postgresql://", "postgresql+", "postgres://")
+
+
+def _build_async_url(database_url: str) -> object:
+    """Normalize DATABASE_URL to postgresql+asyncpg. Raises on unsupported schemes."""
+    if not any(database_url.startswith(s) for s in _SUPPORTED_SCHEMES):
+        raise RuntimeError(
+            f"Unsupported DATABASE_URL scheme. Expected a PostgreSQL URL "
+            f"(postgresql://, postgresql+<driver>://, postgres://). Got: {database_url[:30]!r}"
+        )
+    return make_url(database_url).set(drivername="postgresql+asyncpg")
+
+
+def _make_kiwi():
+    """Load kiwipiepy or fail immediately — no silent fallback in backfill context."""
+    try:
+        from kiwipiepy import Kiwi  # type: ignore[import]
+    except ImportError:
+        raise RuntimeError("kiwipiepy is required: pip install kiwipiepy")
+    return Kiwi()
+
+
+def _strict_tokenize(kiwi, text: str) -> str:
+    """Tokenize without fallback. Any exception propagates to abort the backfill."""
+    tokens = kiwi.tokenize(text or "")
+    return " ".join(t.form for t in tokens if t.tag.startswith(("NN", "VV", "SL", "XR")))
 
 
 async def main() -> None:
@@ -36,9 +60,8 @@ async def main() -> None:
     if not database_url:
         raise RuntimeError("DATABASE_URL environment variable is not set")
 
-    # Force asyncpg dialect regardless of URL form (postgresql://, postgres://, etc.)
-    url = make_url(database_url).set(drivername="postgresql+asyncpg")
-
+    url = _build_async_url(database_url)
+    kiwi = _make_kiwi()  # fail-fast: abort if kiwipiepy unavailable
     engine = create_async_engine(url)
 
     try:
@@ -68,7 +91,7 @@ async def main() -> None:
                     break
 
                 params = [
-                    {"mc": morpheme_tokenize(row.content or ""), "id": row.id}
+                    {"mc": _strict_tokenize(kiwi, row.content or ""), "id": row.id}
                     for row in rows
                 ]
                 await conn.execute(
