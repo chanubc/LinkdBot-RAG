@@ -278,7 +278,8 @@ For more solutions, see the [Troubleshooting Guide](docs/troubleshooting/).
 
 | Category | Technology |
 |----------|-----------|
-| **Backend** | Python 3.11+ · FastAPI (Async) · SQLAlchemy · PostgreSQL 16 + pgvector |
+| **Backend** | Python 3.11+ · FastAPI (Async) · SQLAlchemy |
+| **Database** | PostgreSQL 16 + pgvector |
 | **AI / LLM** | OpenAI GPT-4.1 · text-embedding-3-small (1536 dims) · Jina Reader |
 | **Hybrid RAG** | Dense (pgvector cosine) + Sparse (Full-Text Search) + Rerank |
 | **Integrations** | Telegram Bot API (Webhook) · Notion API (OAuth 2.0 + Page Sync) |
