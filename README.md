@@ -278,21 +278,15 @@ For more solutions, see the [Troubleshooting Guide](docs/troubleshooting/).
 
 | Category | Technology |
 |----------|-----------|
-| **Language** | Python 3.11+ |
-| **API Server** | FastAPI (Async) |
-| **ORM** | SQLAlchemy |
-| **Database** | PostgreSQL 16 + pgvector |
-| **LLM** | OpenAI GPT-4.1 (summarize / classify / agent) |
-| **Embeddings** | OpenAI text-embedding-3-small (1536 dims) |
-| **Hybrid RAG** | Dense (pgvector cosine) + Sparse (PostgreSQL Full-Text Search) + Rerank |
-| **Content Extraction** | Jina Reader (r.jina.ai) |
-| **Telegram** | Telegram Bot API (Webhook) |
-| **Notion** | Notion API (OAuth 2.0 + Page Sync) |
-| **Scheduler** | APScheduler |
+| **Backend** | Python 3.11+ · FastAPI (Async) · SQLAlchemy · PostgreSQL 16 + pgvector |
+| **AI / LLM** | OpenAI GPT-4.1 · text-embedding-3-small (1536 dims) · Jina Reader |
+| **Hybrid RAG** | Dense (pgvector cosine) + Sparse (Full-Text Search) + Rerank |
+| **Integrations** | Telegram Bot API (Webhook) · Notion API (OAuth 2.0 + Page Sync) |
 | **Frontend** | Streamlit |
-| **Security** | Fernet (notion_access_token 암호화), JWT (dashboard 인증) |
-| **Testing** | pytest |
+| **Scheduler** | APScheduler |
+| **Security** | Fernet · JWT |
 | **Infrastructure** | GCP VM · Docker · NGINX · GitHub Actions |
+| **Testing** | pytest |
 
 ---
 
