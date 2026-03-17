@@ -279,7 +279,7 @@ For more solutions, see the [Troubleshooting Guide](docs/troubleshooting/).
 | Category | Technology |
 |----------|-----------|
 | **Language** | Python 3.11+ |
-| **Web Framework** | FastAPI (Async) |
+| **API Server** | FastAPI (Async) |
 | **ORM** | SQLAlchemy |
 | **Database** | PostgreSQL 16 + pgvector |
 | **LLM** | OpenAI GPT-4.1 (summarize / classify / agent) |
@@ -289,7 +289,7 @@ For more solutions, see the [Troubleshooting Guide](docs/troubleshooting/).
 | **Telegram** | Telegram Bot API (Webhook) |
 | **Notion** | Notion API (OAuth 2.0 + Page Sync) |
 | **Scheduler** | APScheduler |
-| **Dashboard** | Streamlit |
+| **Frontend** | Streamlit |
 | **Security** | Fernet (notion_access_token 암호화), JWT (dashboard 인증) |
 | **Testing** | pytest |
 | **Infrastructure** | GCP VM · Docker · NGINX · GitHub Actions |
