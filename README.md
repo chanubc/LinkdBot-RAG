@@ -146,7 +146,7 @@ flowchart TD
 
 ## Architecture
 
-LinkdBot-RAG uses **Pragmatic Clean Architecture** with dependency inversion:
+LinkdBot-RAG uses **Clean Architecture** with dependency inversion:
 
 ```
     Presentation (API)
