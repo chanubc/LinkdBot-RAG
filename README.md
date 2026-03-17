@@ -73,7 +73,7 @@ flowchart TD
     A("👤 Telegram User"):::user
     B["📱 Telegram Bot API"]:::interface
     C["TelegramWebhookHandler"]:::router
-    D{"MessageRouterService<br/>(+ IntentClassifier)"}:::router
+    D{"MessageRouter"}:::router
     E1["SaveLink UseCase"]:::usecase
     E2["SaveMemo UseCase"]:::usecase
     E3["Search UseCase"]:::usecase
