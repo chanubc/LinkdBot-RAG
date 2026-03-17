@@ -15,7 +15,7 @@ class OpenAILLMGateway(ChatCompletionPort):
     async def chat_completions(
         self,
         messages: list[LLMMessage],
-        model: str = "gpt-4o",
+        model: str = "gpt-4.1",
         tools: list[LLMTool] | None = None,
         tool_choice: str = "auto",
         temperature: float = 0.7,
