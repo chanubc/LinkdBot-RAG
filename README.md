@@ -284,6 +284,7 @@ For more solutions, see the [Troubleshooting Guide](docs/troubleshooting/).
 | **Database** | PostgreSQL 16 + pgvector |
 | **LLM** | OpenAI GPT-4.1 (summarize / classify / agent) |
 | **Embeddings** | OpenAI text-embedding-3-small (1536 dims) |
+| **Hybrid RAG** | Dense (pgvector cosine) + Sparse (PostgreSQL Full-Text Search) + Rerank |
 | **Content Extraction** | Jina Reader (r.jina.ai) |
 | **Telegram** | Telegram Bot API (Webhook) |
 | **Notion** | Notion API (OAuth 2.0 + Page Sync) |
