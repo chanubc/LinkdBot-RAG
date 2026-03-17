@@ -70,10 +70,10 @@ flowchart TD
     classDef storage fill:#fed7aa,stroke:#f97316,color:#7c2d12
     classDef external fill:#ffe4e6,stroke:#e11d48,color:#881337
 
-    A["👤 Telegram User"]:::user
+    A("👤 Telegram User"):::user
     B["📱 Telegram Bot API"]:::interface
     C["TelegramWebhookHandler"]:::router
-    D["MessageRouterService<br/>(+ IntentClassifier)"]:::router
+    D{"MessageRouterService<br/>(+ IntentClassifier)"}:::router
     E1["SaveLink UseCase"]:::usecase
     E2["SaveMemo UseCase"]:::usecase
     E3["Search UseCase"]:::usecase
@@ -84,7 +84,7 @@ flowchart TD
     H1["🧪 Jina Reader"]:::external
     H2["🤖 OpenAI API<br/>(Embed/Analyze/Chat)"]:::external
     H3["📜 Notion API<br/>(Sync)"]:::external
-    I["💬 Telegram Response<br/>(Answer or Web Link)"]:::user
+    I("💬 Telegram Response<br/>(Answer or Web Link)"):::user
 
     A --> B --> C --> D
     D -->|"URL"| E1
@@ -120,7 +120,7 @@ flowchart TD
     classDef storage fill:#fed7aa,stroke:#f97316,color:#7c2d12
     classDef external fill:#ffe4e6,stroke:#e11d48,color:#881337
 
-    A1["👤 Telegram User<br/>(via Magic Link)"]:::user
+    A1("👤 Telegram User<br/>(via Magic Link)"):::user
     A2["⏰ Scheduler<br/>(Cron)"]:::interface
     B1["🖥️ Streamlit Dashboard"]:::interface
     B2["AuthService<br/>(Verify JWT)"]:::router
