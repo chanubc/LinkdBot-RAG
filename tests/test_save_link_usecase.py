@@ -93,7 +93,7 @@ async def test_semantic_summary_stored_in_db_display_points_sent_to_notion(
     save_link_usecase,
     save_link_dependencies,
 ):
-    """semantic_summary는 DB summary에, display_points는 bullet 포맷으로 Notion ai_summary에 전달된다."""
+    """semantic_summary는 DB summary에, display_points는 줄바꿈 포맷으로 Notion ai_summary에 전달된다."""
     user_repo = save_link_dependencies["user_repo"]
     link_repo = save_link_dependencies["link_repo"]
     openai = save_link_dependencies["openai"]
@@ -105,7 +105,7 @@ async def test_semantic_summary_stored_in_db_display_points_sent_to_notion(
     og_title = "OG Page Title"
     semantic_summary = "하나증권은 2026 신입 공채를 실시한다. AI 직무 포함 다수 부문 채용 예정이다."
     display_points = ["AI 직무 포함 신입 공채", "지원 자격: 학사 이상", "마감: 2026-03-31"]
-    expected_ai_summary = "• AI 직무 포함 신입 공채\n• 지원 자격: 학사 이상\n• 마감: 2026-03-31"
+    expected_ai_summary = "AI 직무 포함 신입 공채\n지원 자격: 학사 이상\n마감: 2026-03-31"
     notion_page_url = "https://www.notion.so/workspace/child-page"
 
     link_repo.exists_by_user_and_url.return_value = False
@@ -131,7 +131,7 @@ async def test_semantic_summary_stored_in_db_display_points_sent_to_notion(
     # og_title이 title로 사용됨
     assert save_link_kwargs["title"] == og_title
 
-    # Notion은 description(og_description)과 display_points 기반 bullet을 분리해서 받음
+    # Notion은 description(og_description)과 display_points 기반 줄바꿈 요약을 분리해서 받음
     notion.create_database_entry.assert_awaited_once_with(
         access_token="secret",
         database_id="db-123",

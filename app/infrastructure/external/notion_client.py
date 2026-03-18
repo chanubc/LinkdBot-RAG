@@ -78,7 +78,7 @@ class NotionRepository(NotionPort):
     ) -> str:
         """Notion DB에 행 추가 후 페이지 URL 반환.
 
-        ai_summary는 페이지 본문(children 블록)에 bullet 형태로 삽입됨.
+        ai_summary는 페이지 본문(children 블록)에 줄바꿈 문단 형태로 삽입됨.
         """
         properties: dict = {
             "Name":     {"title": [{"text": {"content": title[:2000]}}]},
@@ -109,7 +109,7 @@ class NotionRepository(NotionPort):
 
 
 def _build_summary_blocks(ai_summary: str) -> list[dict]:
-    """AI bullet 요약 문자열을 Notion bulleted_list_item 블록 배열로 변환."""
+    """AI 요약 문자열을 Notion paragraph 블록 배열로 변환."""
     blocks = []
     for line in ai_summary.splitlines():
         text = line.lstrip("•").strip()
@@ -117,8 +117,8 @@ def _build_summary_blocks(ai_summary: str) -> list[dict]:
             continue
         blocks.append({
             "object": "block",
-            "type": "bulleted_list_item",
-            "bulleted_list_item": {
+            "type": "paragraph",
+            "paragraph": {
                 "rich_text": [{"type": "text", "text": {"content": text[:2000]}}]
             },
         })
