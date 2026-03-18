@@ -19,14 +19,6 @@ class IChunkRepository(ABC):
     ) -> list[dict]: ...
 
     @abstractmethod
-    async def search_sparse_candidates(
-        self,
-        user_id: int,
-        query_texts: list[str],
-        top_k: int = 5,
-    ) -> list[dict]: ...
-
-    @abstractmethod
     async def search_og_links(
         self,
         user_id: int,

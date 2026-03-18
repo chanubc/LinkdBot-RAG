@@ -11,7 +11,7 @@ def make_retriever():
     openai.embed.return_value = [[0.1] * 5]
     chunk_repo = AsyncMock()
     chunk_repo.search_og_links.return_value = []
-    chunk_repo.search_sparse_candidates.return_value = []
+    chunk_repo.search_bm25.return_value = []
     return HybridRetriever(openai=openai, chunk_repo=chunk_repo), chunk_repo
 
 
@@ -37,7 +37,7 @@ async def test_non_kiwi_sparse_path_recovers_job_posting_link_canaries(query: st
     chunk_repo.search_similar.return_value = [
         _make_result(2, "일반 링크 정리", ["링크", "모음"], dense_score=0.72),
     ]
-    chunk_repo.search_sparse_candidates.return_value = [
+    chunk_repo.search_bm25.return_value = [
         {
             **_make_result(
                 1,
@@ -54,7 +54,7 @@ async def test_non_kiwi_sparse_path_recovers_job_posting_link_canaries(query: st
     results = await retriever.retrieve(user_id=111, query=query, top_k=3)
 
     assert results[0]["link_id"] == 1
-    assert chunk_repo.search_sparse_candidates.await_count == 1
+    assert chunk_repo.search_bm25.await_count == 1
 
 
 @pytest.mark.asyncio
@@ -64,7 +64,7 @@ async def test_non_kiwi_sparse_path_does_not_duplicate_existing_dense_link():
         _make_result(1, "하나증권 채용공고 링크 모음", ["하나증권", "채용공고", "링크"], dense_score=0.61),
         _make_result(2, "일반 링크 정리", ["링크", "모음"], dense_score=0.58),
     ]
-    chunk_repo.search_sparse_candidates.return_value = [
+    chunk_repo.search_bm25.return_value = [
         {
             **_make_result(
                 1,
@@ -91,7 +91,7 @@ async def test_non_kiwi_sparse_path_does_not_regress_lotte_job_posting_query():
         _make_result(1, "롯데이노베이트 채용공고", ["채용공고", "신입", "공고"], dense_score=0.50),
         _make_result(2, "하나증권 채용공고", ["하나증권", "채용공고"], dense_score=0.60),
     ]
-    chunk_repo.search_sparse_candidates.return_value = [
+    chunk_repo.search_bm25.return_value = [
         {
             **_make_result(3, "무관한 링크 모음", ["링크", "모음"], dense_score=0.0, similarity=0.34),
             "bm25_score": 0.34,
