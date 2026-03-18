@@ -62,7 +62,7 @@ async def test_search_usecase_stops_after_first_query_when_top_k_is_filled():
 
 
 @pytest.mark.asyncio
-async def test_search_usecase_dedupes_same_link_across_fallback_queries():
+async def test_search_usecase_preserves_retriever_ranked_results():
     retriever = AsyncMock()
     retriever.retrieve.return_value = [
         _make_result(1, "A", 0.55),

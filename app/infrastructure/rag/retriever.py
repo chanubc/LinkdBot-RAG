@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 from app.domain.repositories.i_chunk_repository import IChunkRepository
@@ -17,6 +18,24 @@ _MAX_BM25_K = 30
 _MIN_RESULT_SIMILARITY = 0.30
 _RELATIVE_RESULT_RATIO = 0.60
 _TRAILING_PUNCTUATION = "!?.,:;)]}\"'”’"
+_SEARCH_FILLER_TAILS = {
+    "링크",
+    "관련",
+    "자료",
+    "내용",
+}
+_SEARCH_COMMAND_TAILS = {
+    "가져와",
+    "가져와줘",
+    "찾아줘",
+    "보여줘",
+    "알려줘",
+    "줘",
+    "좀",
+}
+_COMPOUND_SPLIT_MAP = {
+    "채용공고": "채용 공고",
+}
 
 
 class HybridRetriever:
@@ -49,7 +68,7 @@ class HybridRetriever:
 
         merged_across_queries: list[dict] = []
         seen_queries: set[str] = set()
-        query_candidates = search_queries or [query]
+        query_candidates = search_queries or _build_search_queries(query)
 
         for query_text in query_candidates:
             candidate = query_text.strip()
@@ -57,16 +76,18 @@ class HybridRetriever:
                 continue
             seen_queries.add(candidate)
 
-            chunk_results = await self._chunk_repo.search_similar(
-                user_id,
-                embedding,
-                recall_k,
-                query_text=candidate,
-            )
-            bm25_results = await self._chunk_repo.search_bm25(
-                user_id,
-                _build_bm25_query(candidate),
-                bm25_k,
+            chunk_results, bm25_results = await asyncio.gather(
+                self._chunk_repo.search_similar(
+                    user_id,
+                    embedding,
+                    recall_k,
+                    query_text=candidate,
+                ),
+                self._chunk_repo.search_bm25(
+                    user_id,
+                    _build_bm25_query(candidate),
+                    bm25_k,
+                ),
             )
             merged = _merge_results(chunk_results, og_results, bm25_results)
             rescored = _rescore_with_keywords(merged, candidate)
@@ -160,9 +181,47 @@ def _build_query_variants(query: str) -> list[str]:
     return variants
 
 
+def _build_search_queries(query: str) -> list[str]:
+    """Build search-specific lexical query family for fallback widening."""
+    base = query.strip()
+    if not base:
+        return []
+
+    queries = [base]
+
+    tokens = [_strip_trailing_punctuation(t) for t in base.split()]
+    tokens = [t for t in tokens if t]
+    if not tokens:
+        return queries
+
+    cleaned = " ".join(tokens)
+    if cleaned not in queries:
+        queries.append(cleaned)
+
+    core_tokens = tokens[:]
+    while core_tokens and core_tokens[-1] in (_SEARCH_FILLER_TAILS | _SEARCH_COMMAND_TAILS):
+        core_tokens.pop()
+
+    if core_tokens:
+        core = " ".join(core_tokens)
+        if core not in queries:
+            queries.append(core)
+
+        split_tokens = [_split_known_compound_token(token) for token in core_tokens]
+        split_query = " ".join(split_tokens)
+        if split_query not in queries:
+            queries.append(split_query)
+
+    return queries
+
+
 def _strip_trailing_punctuation(token: str) -> str:
     """Drop common sentence-ending punctuation from a token."""
     return token.rstrip(_TRAILING_PUNCTUATION)
+
+
+def _split_known_compound_token(token: str) -> str:
+    return _COMPOUND_SPLIT_MAP.get(token, token)
 
 
 def _build_bm25_query(query: str) -> str:

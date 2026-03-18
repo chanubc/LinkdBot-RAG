@@ -8,7 +8,7 @@ _REQUIRED_TEST_ENV = {
     'NOTION_CLIENT_ID': 'test',
     'NOTION_CLIENT_SECRET': 'test',
     'NOTION_REDIRECT_URI': 'https://example.com/notion',
-    'ENCRYPTION_KEY': 'test',
+    'ENCRYPTION_KEY': 'VqEq2rCnzMq-AcS0MditpkHKtCiJQy32Wcsw1nJ78qE=',
 }
 
 for key, value in _REQUIRED_TEST_ENV.items():

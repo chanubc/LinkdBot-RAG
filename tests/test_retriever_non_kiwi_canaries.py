@@ -54,7 +54,11 @@ async def test_non_kiwi_sparse_path_recovers_job_posting_link_canaries(query: st
     results = await retriever.retrieve(user_id=111, query=query, top_k=3)
 
     assert results[0]["link_id"] == 1
-    assert chunk_repo.search_bm25.await_count == 1
+    assert [call.args[1] for call in chunk_repo.search_bm25.await_args_list] == [
+        query,
+        "채용공고",
+        "채용 공고",
+    ]
 
 
 @pytest.mark.asyncio
