@@ -489,3 +489,31 @@ async def test_korean_particle_stripping_score_range():
         assert results[0]["similarity"] > results[1]["similarity"], (
             "Particle-matched doc should score higher than unmatched doc"
         )
+
+
+@pytest.mark.asyncio
+async def test_bare_noun_particle_suffix_does_not_overmatch_other_brand():
+    """Brands ending in particle-like syllables should not be stripped into other brands."""
+    retriever, chunk_repo = make_retriever()
+    chunk_repo.search_similar.return_value = [
+        _make_result(1, "하나증권 채용", ["하나증권", "채용"], dense_score=0.60),
+        _make_result(2, "하나로 채용", ["하나로", "채용"], dense_score=0.55),
+    ]
+
+    results = await retriever.retrieve(user_id=111, query="하나로 채용", top_k=5)
+
+    assert results[0]["link_id"] == 2, "Bare noun '하나로' should not be stripped to unrelated '하나'"
+
+
+@pytest.mark.asyncio
+async def test_particle_query_with_trailing_punctuation_still_matches():
+    """Trailing punctuation should not prevent particle-stripped matching."""
+    retriever, chunk_repo = make_retriever()
+    chunk_repo.search_similar.return_value = [
+        _make_result(1, "채용 정보", ["채용공고", "신입사원"], dense_score=0.50),
+        _make_result(2, "무관 문서", ["Python", "로깅"], dense_score=0.65),
+    ]
+
+    results = await retriever.retrieve(user_id=111, query="채용공고를?", top_k=5)
+
+    assert results[0]["link_id"] == 1, "Trailing punctuation should not drop particle-stripped keyword boost"

@@ -2,8 +2,6 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.repositories.i_chunk_repository import IChunkRepository
-from app.infrastructure.rag.korean_utils import morpheme_tokenize
-from app.models.chunk import Chunk
 
 
 class ChunkRepository(IChunkRepository):
@@ -26,14 +24,13 @@ class ChunkRepository(IChunkRepository):
                 :link_id,
                 :content,
                 CAST(:emb AS vector),
-                to_tsvector('simple', :morpheme_content)
+                to_tsvector('simple', :content)
             )
         """)
         params = [
             {
                 "link_id": link_id,
                 "content": content,
-                "morpheme_content": morpheme_tokenize(content),
                 "emb": "[" + ",".join(str(v) for v in embedding) + "]",
             }
             for content, embedding in chunks
@@ -74,12 +71,12 @@ class ChunkRepository(IChunkRepository):
                 sparse AS (
                     SELECT
                         c.id AS chunk_id,
-                        ts_rank(c.tsv, plainto_tsquery('simple', :morpheme_query)) AS sparse_score
+                        ts_rank(c.tsv, plainto_tsquery('simple', :query_text)) AS sparse_score
                     FROM chunks c
                     JOIN links l ON c.link_id = l.id
                     WHERE l.user_id = :user_id
                       AND c.tsv IS NOT NULL
-                      AND c.tsv @@ plainto_tsquery('simple', :morpheme_query)
+                      AND c.tsv @@ plainto_tsquery('simple', :query_text)
                 )
                 SELECT
                     d.link_id,
@@ -99,12 +96,7 @@ class ChunkRepository(IChunkRepository):
             """)
             result = await self._db.execute(
                 sql,
-                {
-                    "emb": emb_str,
-                    "user_id": user_id,
-                    "morpheme_query": morpheme_tokenize(query_text),
-                    "top_k": top_k,
-                },
+                {"emb": emb_str, "user_id": user_id, "query_text": query_text, "top_k": top_k},
             )
         else:
             # Dense-only 폴백

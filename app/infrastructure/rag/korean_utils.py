@@ -1,44 +1,69 @@
-"""Korean language utilities for morpheme tokenization."""
+"""Korean language utilities for particle stripping."""
 
-from __future__ import annotations
+# Korean particles (조사) commonly attached to nouns.
+#
+# Be conservative with single-syllable suffixes that also frequently appear as
+# part of bare nouns/brand names (e.g. "하나로", "오늘도"). The rollback path
+# should prefer avoiding false-positive boosts over aggressively stripping every
+# particle-like ending without morphological context.
+_PARTICLES = {
+    "을", "를", "이", "가", "은", "는",  # Object/Subject markers
+    "에서", "으로",  # Location/Direction
+    "까지", "부터",  # Range/Comparison
+    "에게", "한테", "께서",  # Indirect object
+}
 
-_kiwi_instance = None
+# Precomputed sorted particles (longest first) — avoids re-sorting on every call
+_PARTICLES_SORTED: tuple[str, ...] = tuple(sorted(_PARTICLES, key=len, reverse=True))
 
 
-def _kiwi():
-    """Return the shared Kiwi instance (lazy-init on first call)."""
-    global _kiwi_instance
-    if _kiwi_instance is None:
-        from kiwipiepy import Kiwi  # type: ignore[import]
-        _kiwi_instance = Kiwi()
-    return _kiwi_instance
+def strip_particles(token: str) -> str:
+    """Remove Korean particles from the end of a token.
 
+    Tries longest-match suffix removal from _PARTICLES.
+    Returns stripped form if remaining length >= 2, else returns original.
 
-def morpheme_tokenize(text: str) -> str:
-    """Tokenize Korean text into meaningful morphemes for FTS.
-
-    Extracts nouns (NN*), verbs (VV*), and foreign words (SL) via kiwipiepy,
-    returning them space-joined so PostgreSQL 'simple' dictionary can index each
-    morpheme independently.
-
-    Compound words are split and particles stripped automatically:
-        morpheme_tokenize("채용공고를")       → "채용 공고"
-        morpheme_tokenize("증권에서")         → "증권"
-        morpheme_tokenize("AI 개발자를 채용") → "AI 개발자 채용"
-        morpheme_tokenize("")                 → ""
+    Examples:
+        "채용공고를" → "채용공고"
+        "증권에서" → "증권"
+        "을" → "을" (too short after strip)
+        "AI" → "AI" (no particle)
     """
-    if not text or not text.strip():
-        return ""
+    if not token:
+        return token
 
-    try:
-        tokens = _kiwi().tokenize(text)
-        meaningful = [
-            t.form
-            for t in tokens
-            if t.tag.startswith(("NN", "VV", "SL", "XR"))
-        ]
-        return " ".join(meaningful)
-    except Exception:
-        # Fallback to whitespace split so FTS/keyword paths keep working
-        # even if kiwipiepy is unavailable or raises unexpectedly.
-        return " ".join(text.split())
+    # Try longest matching particles first (for multi-character particles like "에서")
+    for particle in _PARTICLES_SORTED:
+        if token.endswith(particle):
+            stripped = token[: -len(particle)]
+            # Keep stripped form only if it's 2+ characters
+            if len(stripped) >= 2:
+                return stripped
+
+    # No particle matched, or stripped form too short
+    return token
+
+
+def normalize_korean_query(query: str) -> list[str]:
+    """Normalize Korean query by stripping particles from each token.
+
+    Note: Alias expansion is handled separately in _build_query_variants.
+    This function only strips particles.
+
+    Examples:
+        "채용공고를 찾습니다" → ["채용공고", "찾습니다"]
+        "하나 증권" → ["하나", "증권"]
+    """
+    if not query or not query.strip():
+        return []
+
+    tokens = query.strip().split()
+    normalized = []
+
+    for token in tokens:
+        if token:
+            # Strip particles from each token only
+            stripped = strip_particles(token)
+            normalized.append(stripped)
+
+    return normalized

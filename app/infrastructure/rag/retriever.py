@@ -2,7 +2,7 @@ import json
 
 from app.domain.repositories.i_chunk_repository import IChunkRepository
 from app.application.ports.ai_analysis_port import AIAnalysisPort
-from app.infrastructure.rag.korean_utils import morpheme_tokenize
+from app.infrastructure.rag.korean_utils import strip_particles
 
 _KEYWORD_WEIGHT_JINA = 0.3
 _KEYWORD_WEIGHT_OG = 0.1
@@ -13,6 +13,7 @@ _MAX_RECALL_K = 100
 
 _MIN_RESULT_SIMILARITY = 0.30
 _RELATIVE_RESULT_RATIO = 0.60
+_TRAILING_PUNCTUATION = "!?.,:;)]}\"'”’"
 
 
 class HybridRetriever:
@@ -47,30 +48,45 @@ def _merge_results(chunk_results: list[dict], og_results: list[dict]) -> list[di
 
 
 def _build_query_variants(query: str) -> list[str]:
-    """원문 + 공백제거본 + bi-gram + morpheme 변형 생성.
+    """원문 + 공백제거본 + bi-gram + particle-stripped 변형 생성.
 
     예: "하나 증권 채용" → includes:
       - "하나 증권 채용" (original)
       - "하나증권채용" (compact)
       - "하나증권 채용" (bi-gram: tokens 0+1 joined)
       - "하나 증권채용" (bi-gram: tokens 1+2 joined)
-      - morpheme-tokenized variants (Kiwi splits compounds + strips particles)
+      - particle-stripped variants of each above
 
-    예: "채용공고를" → includes:
-      - "채용공고를" (original)
-      - "채용공고를" (compact, same)
-      - "채용 공고" (morpheme: compound split + particle stripped)
-      - "채용공고" (compact morpheme)
+    예: "채용공고를 찾습니다" → includes:
+      - "채용공고를 찾습니다" (original)
+      - "채용공고 찾습니다" (particle-stripped)
+
+    Korean particles (을, 를, 에서, etc.) are stripped from each token.
     """
     base = query.strip()
     variants = [base]
 
-    tokens = base.split()
+    cleaned_tokens = [_strip_trailing_punctuation(t) for t in base.split()]
+    tokens = [t for t in cleaned_tokens if t]
+    cleaned_base = " ".join(tokens)
+    if cleaned_base and cleaned_base not in variants:
+        variants.append(cleaned_base)
+
+    # Strip particles from all tokens
+    stripped_tokens = [strip_particles(t) for t in tokens]
+    stripped_base = " ".join(stripped_tokens)
+    if stripped_base and stripped_base not in variants:
+        variants.append(stripped_base)
 
     # Compact version from original tokens
     compact = "".join(tokens)
     if compact and compact not in variants:
         variants.append(compact)
+
+    # Compact version from particle-stripped tokens
+    compact_stripped = "".join(stripped_tokens)
+    if compact_stripped and compact_stripped not in variants:
+        variants.append(compact_stripped)
 
     # Bi-gram combinations from original tokens
     for i in range(len(tokens) - 1):
@@ -79,35 +95,54 @@ def _build_query_variants(query: str) -> list[str]:
         if variant not in variants:
             variants.append(variant)
 
-    # Morpheme-tokenized variant (Kiwi splits compounds + strips particles)
-    # e.g. "채용공고를" → "채용 공고"
-    morpheme_base = morpheme_tokenize(base)
-    if morpheme_base and morpheme_base not in variants:
-        variants.append(morpheme_base)
-
-    # Compact morpheme variant
-    morpheme_compact = "".join(morpheme_base.split())
-    if morpheme_compact and morpheme_compact not in variants:
-        variants.append(morpheme_compact)
+    # Bi-gram combinations from stripped tokens
+    for i in range(len(stripped_tokens) - 1):
+        combined = stripped_tokens[i] + stripped_tokens[i + 1]
+        variant = " ".join(stripped_tokens[:i] + [combined] + stripped_tokens[i + 2:])
+        if variant not in variants:
+            variants.append(variant)
 
     return variants
 
 
+def _strip_trailing_punctuation(token: str) -> str:
+    """Drop common sentence-ending punctuation from a token."""
+    return token.rstrip(_TRAILING_PUNCTUATION)
+
+
 def _token_matches(query_token: str, keyword: str) -> bool:
-    """부분 문자열 포함 여부.
+    """부분 문자열 포함 여부, Korean particle 처리 포함.
 
-    morpheme_tokenize가 _build_query_variants에서 이미 particle 제거 + compound 분리를
-    처리하므로, 여기서는 단순 exact/substring 매칭만 수행.
+    조건부 bidirectional matching으로 particle-attached tokens를 처리:
+    1. Exact match (after lowercasing)
+    2. Query token as substring of keyword (original logic)
+    3. Exact match after particle stripping: "채용공고를" (stripped) == keyword "채용공고"
+    4. Stripped query as substring of keyword (only if both meaningful)
 
-    예: "공고" in "채용공고" → True / "하나증권" in "하나증권공고" → True (substring 방향만 허용)
+    keyword in query_token 방향은 conditional only (정확히 strip 후 exact만 허용)
+    → compact variant에서의 과도한 boost 방지.
+    예: "공고" in "채용공고" → 허용 / "하나증권" in "하나증권공고" → 차단 (조건1만)
     """
     q = query_token.lower()
     k = keyword.lower()
 
+    # 1. Exact match
     if q == k:
         return True
 
+    # 2. Query token is substring of keyword (existing logic)
     if len(q) >= 2 and q in k:
+        return True
+
+    # 3. Conditional bidirectional: exact match after particle stripping
+    #    This handles "채용공고를" → "채용공고" == keyword, but prevents
+    #    "하나증권공고" from matching keyword "증권" (only exact after strip)
+    q_stripped = strip_particles(q)
+    if q_stripped != q and q_stripped == k:
+        return True
+
+    # 4. Particle-stripped substring matching (safe, only if both meaningful)
+    if len(q_stripped) >= 2 and len(k) >= 2 and q_stripped in k:
         return True
 
     return False
