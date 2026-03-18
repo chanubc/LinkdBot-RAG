@@ -33,7 +33,7 @@ async def test_search_usecase_tries_normalized_queries_when_results_are_sparse()
         111,
         "채용공고 링크 가져와",
         10,
-        search_queries=["채용공고 링크 가져와", "채용공고", "채용 공고"],
+        search_queries=["채용공고 링크 가져와", "채용공고"],
     )
     assert [r["link_id"] for r in results] == [1, 2, 3, 4, 5]
 
@@ -74,3 +74,10 @@ async def test_search_usecase_preserves_retriever_ranked_results():
 
     assert [r["link_id"] for r in results] == [1, 2]
     assert results[0]["similarity"] == 0.55
+
+    retriever.retrieve.assert_awaited_once_with(
+        111,
+        "채용공고 링크",
+        10,
+        search_queries=["채용공고 링크", "채용공고"],
+    )

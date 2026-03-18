@@ -14,9 +14,10 @@ This patch adds a **non-Kiwi sparse recall path** that keeps the existing
 
 1. `HybridRetriever.retrieve()` still fetches the dense hybrid chunk path and OG path.
 2. It now also calls `ChunkRepository.search_bm25()` for the lexical path.
-3. Search-driven fallback queries (for example `채용공고 링크` → `채용공고` → `채용 공고`) are built in `SearchUseCase`, and direct `HybridRetriever` callers can fall back to the same query family automatically. `HybridRetriever` computes the embedding **once** for the original query and fans out only the lexical/database lookups across those query texts.
+3. Search-driven fallback queries (for example `채용공고 링크` → `채용공고`) are built in `SearchUseCase`, and direct `HybridRetriever` callers can fall back to the same query family automatically. `HybridRetriever` computes the embedding **once** for the original query and fans out only the lexical/database lookups across those query texts.
 4. `search_bm25()`:
    - reuses the existing `chunks.tsv` index for the chunk-content path
+   - adds a compact no-space title/summary lexical fallback so `채용공고` can still match `채용 공고`
    - ranks chunk hits with weighted title/summary + `c.tsv`
    - uses `plainto_tsquery('simple', ...)` for a safer raw-user-text path
    - collapses chunk hits per `link_id` before applying the recall limit

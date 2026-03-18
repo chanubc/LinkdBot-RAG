@@ -173,7 +173,9 @@ class ChunkRepository(IChunkRepository):
 
         sql = text("""
             WITH query AS (
-                SELECT plainto_tsquery('simple', :query_text) AS q
+                SELECT
+                    plainto_tsquery('simple', :query_text) AS q,
+                    plainto_tsquery('simple', replace(:query_text, ' ', '')) AS compact_q
             ),
             chunk_docs AS (
                 SELECT DISTINCT ON (l.id)
@@ -185,19 +187,45 @@ class ChunkRepository(IChunkRepository):
                     l.keywords,
                     l.content_source,
                     c.content AS chunk_content,
-                    ts_rank_cd(
-                        setweight(to_tsvector('simple', COALESCE(l.title, '')), 'A') ||
-                        setweight(to_tsvector('simple', COALESCE(l.summary, '')), 'B') ||
-                        setweight(c.tsv, 'C'),
-                        query.q,
-                        32
+                    GREATEST(
+                        ts_rank_cd(
+                            setweight(to_tsvector('simple', COALESCE(l.title, '')), 'A') ||
+                            setweight(to_tsvector('simple', COALESCE(l.summary, '')), 'B') ||
+                            setweight(c.tsv, 'C'),
+                            query.q,
+                            32
+                        ),
+                        ts_rank_cd(
+                            setweight(
+                                to_tsvector('simple', replace(COALESCE(l.title, ''), ' ', '')),
+                                'A'
+                            ) ||
+                            setweight(
+                                to_tsvector('simple', replace(COALESCE(l.summary, ''), ' ', '')),
+                                'B'
+                            ),
+                            query.compact_q,
+                            32
+                        )
                     ) AS bm25_score
                 FROM query
                 JOIN chunks c
                   ON c.tsv IS NOT NULL
-                 AND c.tsv @@ query.q
                 JOIN links l ON c.link_id = l.id
                 WHERE l.user_id = :user_id
+                  AND (
+                    c.tsv @@ query.q OR
+                    (
+                        setweight(
+                            to_tsvector('simple', replace(COALESCE(l.title, ''), ' ', '')),
+                            'A'
+                        ) ||
+                        setweight(
+                            to_tsvector('simple', replace(COALESCE(l.summary, ''), ' ', '')),
+                            'B'
+                        )
+                    ) @@ query.compact_q
+                  )
                 ORDER BY l.id, bm25_score DESC, c.id
             ),
             og_candidates AS (
@@ -213,7 +241,17 @@ class ChunkRepository(IChunkRepository):
                     (
                         setweight(to_tsvector('simple', COALESCE(l.title, '')), 'A') ||
                         setweight(to_tsvector('simple', COALESCE(l.summary, '')), 'B')
-                    ) AS og_tsv
+                    ) AS og_tsv,
+                    (
+                        setweight(
+                            to_tsvector('simple', replace(COALESCE(l.title, ''), ' ', '')),
+                            'A'
+                        ) ||
+                        setweight(
+                            to_tsvector('simple', replace(COALESCE(l.summary, ''), ' ', '')),
+                            'B'
+                        )
+                    ) AS og_compact_tsv
                 FROM links l
                 WHERE l.user_id = :user_id
                   AND l.summary_embedding IS NOT NULL
@@ -231,14 +269,21 @@ class ChunkRepository(IChunkRepository):
                     og.keywords,
                     og.content_source,
                     og.chunk_content,
-                    ts_rank_cd(
-                        og.og_tsv,
-                        query.q,
-                        32
+                    GREATEST(
+                        ts_rank_cd(
+                            og.og_tsv,
+                            query.q,
+                            32
+                        ),
+                        ts_rank_cd(
+                            og.og_compact_tsv,
+                            query.compact_q,
+                            32
+                        )
                     ) AS bm25_score
                 FROM og_candidates og
                 CROSS JOIN query
-                WHERE og.og_tsv @@ query.q
+                WHERE og.og_tsv @@ query.q OR og.og_compact_tsv @@ query.compact_q
             )
             SELECT
                 ranked.link_id,

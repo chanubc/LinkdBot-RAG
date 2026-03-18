@@ -148,7 +148,8 @@ async def test_search_bm25_sql_keeps_raw_text_rank_path():
     sql_text = str(db.execute.call_args[0][0])
     assert "ts_rank_cd" in sql_text
     assert "plainto_tsquery('simple', :query_text)" in sql_text
+    assert "replace(:query_text, ' ', '')" in sql_text
     assert "c.tsv @@ query.q" in sql_text
     assert "DISTINCT ON (l.id)" in sql_text
-    assert "COALESCE(l.summary, '')" in sql_text
+    assert "replace(COALESCE(l.title, ''), ' ', '')" in sql_text
     assert "morpheme" not in sql_text.lower()

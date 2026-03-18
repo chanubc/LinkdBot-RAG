@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 
 from app.domain.repositories.i_chunk_repository import IChunkRepository
 from app.application.ports.ai_analysis_port import AIAnalysisPort
@@ -33,9 +34,7 @@ _SEARCH_COMMAND_TAILS = {
     "줘",
     "좀",
 }
-_COMPOUND_SPLIT_MAP = {
-    "채용공고": "채용 공고",
-}
+_HANGUL_COMPOUND_RE = re.compile(r"^[가-힣]{4}$")
 
 
 class HybridRetriever:
@@ -178,6 +177,10 @@ def _build_query_variants(query: str) -> list[str]:
         if variant not in variants:
             variants.append(variant)
 
+    split_variant = " ".join(_split_hangul_compound_token(token) for token in stripped_tokens)
+    if split_variant and split_variant not in variants:
+        variants.append(split_variant)
+
     return variants
 
 
@@ -207,11 +210,6 @@ def _build_search_queries(query: str) -> list[str]:
         if core not in queries:
             queries.append(core)
 
-        split_tokens = [_split_known_compound_token(token) for token in core_tokens]
-        split_query = " ".join(split_tokens)
-        if split_query not in queries:
-            queries.append(split_query)
-
     return queries
 
 
@@ -220,8 +218,15 @@ def _strip_trailing_punctuation(token: str) -> str:
     return token.rstrip(_TRAILING_PUNCTUATION)
 
 
-def _split_known_compound_token(token: str) -> str:
-    return _COMPOUND_SPLIT_MAP.get(token, token)
+def _split_hangul_compound_token(token: str) -> str:
+    """Generically split simple 4-syllable Hangul compounds into 2+2 chunks.
+
+    This avoids domain-specific token maps while still helping common compounds
+    like `채용공고`, `공개채용`, `채용안내` match spaced titles.
+    """
+    if _HANGUL_COMPOUND_RE.match(token):
+        return f"{token[:2]} {token[2:]}"
+    return token
 
 
 def _build_bm25_query(query: str) -> str:

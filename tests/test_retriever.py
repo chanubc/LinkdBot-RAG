@@ -541,7 +541,6 @@ async def test_non_kiwi_bm25_path_recovers_relevant_link_when_dense_misses():
     assert [call.args[1] for call in chunk_repo.search_bm25.await_args_list] == [
         "채용공고 링크",
         "채용공고",
-        "채용 공고",
     ]
 
 
@@ -569,4 +568,4 @@ async def test_direct_retriever_call_uses_search_query_family_when_not_supplied(
     await retriever.retrieve(user_id=111, query="채용공고 링크 알려줘", top_k=5)
 
     called_queries = [call.args[1] for call in chunk_repo.search_bm25.await_args_list]
-    assert called_queries == ["채용공고 링크 알려줘", "채용공고", "채용 공고"]
+    assert called_queries == ["채용공고 링크 알려줘", "채용공고"]

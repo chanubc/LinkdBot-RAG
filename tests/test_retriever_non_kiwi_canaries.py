@@ -57,7 +57,6 @@ async def test_non_kiwi_sparse_path_recovers_job_posting_link_canaries(query: st
     assert [call.args[1] for call in chunk_repo.search_bm25.await_args_list] == [
         query,
         "채용공고",
-        "채용 공고",
     ]
 
 
