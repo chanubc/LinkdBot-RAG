@@ -10,15 +10,41 @@
 
 ## Demo
 
-| Link Save & Sync | Hybrid RAG | Knowledge Q&A |
-|:-:|:-:|:-:|
-| ![Link Save](docs/assets/screenshots/telegram-save-link-sync.jpg) | ![Hybrid RAG](docs/assets/screenshots/telegram-search-results.jpg) | ![Knowledge Q&A](docs/assets/screenshots/telegram-ask-answer.jpg) |
-| 본문 스크랩·요약 후 저장 및 Notion 동기화 | Dense+Sparse 검색 후 reranking 적용 | 저장된 링크·메모 기반 답변 생성 |
+<table width="100%">
+  <tr>
+    <th width="33.33%">Link Save &amp; Sync</th>
+    <th width="33.33%">Hybrid RAG</th>
+    <th width="33.33%">Knowledge Q&amp;A</th>
+  </tr>
+  <tr>
+    <td width="33.33%"><img src="docs/assets/screenshots/telegram-save-link-sync.jpg" width="100%" alt="Link Save" /></td>
+    <td width="33.33%"><img src="docs/assets/screenshots/telegram-search-results.jpg" width="100%" alt="Hybrid RAG" /></td>
+    <td width="33.33%"><img src="docs/assets/screenshots/telegram-ask-answer.jpg" width="100%" alt="Knowledge Q&amp;A" /></td>
+  </tr>
+  <tr>
+    <td width="33.33%">본문 스크랩·요약 후 저장 및 Notion 동기화</td>
+    <td width="33.33%">Dense+Sparse 검색 후 reranking 적용</td>
+    <td width="33.33%">저장된 링크·메모 기반 답변 생성</td>
+  </tr>
+</table>
 
-| Weekly Report | Dashboard Entry | Quick Menu |
-|:-:|:-:|:-:|
-| ![Weekly Report](docs/assets/screenshots/telegram-weekly-report.jpg) | ![Dashboard Entry](docs/assets/screenshots/telegram-dashboard-entry.jpg) | ![Quick Menu](docs/assets/screenshots/telegram-quick-menu.jpg) |
-| drift·reactivation 기반 추천 리포트 | JWT 매직 링크로 대시보드 이동 | 검색·질문·리포트 빠른 실행 |
+<table width="100%">
+  <tr>
+    <th width="33.33%">Weekly Report</th>
+    <th width="33.33%">Dashboard Entry</th>
+    <th width="33.33%">Quick Menu</th>
+  </tr>
+  <tr>
+    <td width="33.33%"><img src="docs/assets/screenshots/telegram-weekly-report.jpg" width="100%" alt="Weekly Report" /></td>
+    <td width="33.33%"><img src="docs/assets/screenshots/telegram-dashboard-entry.jpg" width="100%" alt="Dashboard Entry" /></td>
+    <td width="33.33%"><img src="docs/assets/screenshots/telegram-quick-menu.jpg" width="100%" alt="Quick Menu" /></td>
+  </tr>
+  <tr>
+    <td width="33.33%">drift·reactivation 기반 추천 리포트</td>
+    <td width="33.33%">JWT 매직 링크로 대시보드 이동</td>
+    <td width="33.33%">검색·질문·리포트 빠른 실행</td>
+  </tr>
+</table>
 
 ---
 
