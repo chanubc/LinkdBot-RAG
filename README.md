@@ -10,10 +10,10 @@
 
 ## Demo
 
-| Link Save & Notion Sync | Hybrid Search (Vector + Keyword) | Knowledge Q&A (`/ask`) |
+| Link Save & Notion Sync | Hybrid RAG (벡터(Dense) + 키워드(Sparse)) | Knowledge Q&A (`/ask`) |
 |:-:|:-:|:-:|
 | <img src="docs/assets/screenshots/telegram-save-link-sync.jpg" width="220" alt="링크 저장" /> | <img src="docs/assets/screenshots/telegram-search-results.jpg" width="220" alt="하이브리드 검색" /> | <img src="docs/assets/screenshots/telegram-ask-answer.jpg" width="220" alt="지식 Q&A" /> |
-| 텔레그램에 링크만 보내면 본문 스크랩 → 요약/분석 → 저장 → Notion 동기화까지 한 번에 처리 | Vector + keyword (sparse) 기반으로 저장된 링크를 함께 검색하고 바로 읽음 처리 가능 | 저장된 링크/메모를 바탕으로 답변을 생성하는 개인 지식 Q&A 흐름 |
+| 텔레그램에 링크만 보내면 본문 스크랩 → 요약/분석 → 저장 → Notion 동기화까지 한 번에 처리 | 벡터 + 키워드 검색 후 reranking으로 정확도를 높임 | 저장된 링크/메모를 바탕으로 답변을 생성하는 개인 지식 Q&A 흐름 |
 
 | Proactive Weekly Report | Dashboard Entry | Quick Menu |
 |:-:|:-:|:-:|
@@ -27,7 +27,7 @@
 | Priority | Feature | Description |
 |---|---|---|
 | 1 | **Proactive Agent** | 사용자의 저장 패턴과 관심사 변화를 분석해 `drift`를 감지하고, `reactivation` 점수를 기반으로 다시 볼 만한 링크를 주간 리포트로 먼저 제안합니다. 이 프로젝트의 차별점이 가장 강하게 드러나는 영역입니다. |
-| 2 | **Hybrid Search (Vector + Keyword / Sparse)** | pgvector 기반 vector semantic search와 keyword/FTS 기반 sparse search를 함께 사용해 관련 링크를 더 안정적으로 찾습니다. `/search` 품질뿐 아니라 `/ask` 답변 품질의 기반이 됩니다. |
+| 2 | **Hybrid RAG (Dense + Sparse + Reranking)** | pgvector 기반 dense vector search와 keyword/FTS 기반 sparse search를 함께 사용하고, 이후 reranking과 cutoff optimization까지 적용해 관련 링크를 더 안정적으로 찾습니다. `/search` 품질뿐 아니라 `/ask` 답변 품질의 기반이 됩니다. |
 | 3 | **지식 Q&A 에이전트** | `/ask` 요청 시 저장된 링크와 메모를 조회한 뒤 근거 기반 답변을 생성합니다. 단순 챗봇이 아니라 개인 지식 베이스를 활용하는 응답 흐름입니다. |
 | 4 | **본문 스크랩 & Notion 요약 자동화** | 텔레그램에 링크만 보내면 해당 페이지의 본문 내용을 스크랩/크롤링하고, 요약·키워드·임베딩을 생성한 뒤 저장합니다. 이후 핵심 요약과 메타데이터를 Notion에도 자동 동기화해 다시 보기 쉬운 형태로 남깁니다. |
 | 5 | **멀티 서피스 UX** | 텔레그램을 메인 인터페이스로 유지하면서, Streamlit 대시보드와 Notion을 보조 표면으로 연결해 탐색/회고/재사용을 돕습니다. |
@@ -39,8 +39,8 @@
 1. **Proactive Agent (drift + reactivation)**  
    이 프로젝트를 “저장 앱”이 아니라 “먼저 챙겨주는 지식 코파일럿”으로 바꾸는 가장 중요한 기능입니다.
 
-2. **Hybrid Search (vector + keyword / sparse)**  
-   사람들이 바로 이해할 수 있는 표현으로 보면 “벡터 검색 + 키워드 검색” 조합입니다. 검색 품질이 좋아야 질문 응답, 추천, 리포트가 전부 살아납니다.
+2. **Hybrid RAG (벡터 dense + 키워드 sparse + reranking)**  
+   사람들이 바로 이해할 수 있는 표현으로 보면 “벡터 검색 + 키워드 검색” 조합이고, 그 위에 reranking과 cutoff optimization이 한 번 더 얹혀 있습니다. 검색 품질이 좋아야 질문 응답, 추천, 리포트가 전부 살아납니다.
 
 3. **본문 스크랩과 Notion 요약 자동화**  
    아무리 추천과 검색이 좋아도 원문 지식이 제대로 쌓이지 않으면 가치가 없습니다. 링크 본문을 자동으로 읽고 요약해 Notion까지 정리해주는 흐름이 실사용성을 받쳐줍니다.
