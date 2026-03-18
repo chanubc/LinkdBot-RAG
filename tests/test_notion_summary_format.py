@@ -105,19 +105,9 @@ class NotionSummaryFormatTest(unittest.TestCase):
             "셋째 줄도 허용",
         )
 
-    def test_build_summary_blocks_splits_long_lines(self):
-        with _scoped_summary_test_imports() as (notion_client, _):
-            long_line = "A" * 4300
-            blocks = notion_client._build_summary_blocks(long_line)
-
-        self.assertEqual(len(blocks), 3)
-        self.assertEqual(len(blocks[0]["paragraph"]["rich_text"][0]["text"]["content"]), 2000)
-        self.assertEqual(len(blocks[1]["paragraph"]["rich_text"][0]["text"]["content"]), 2000)
-        self.assertEqual(len(blocks[2]["paragraph"]["rich_text"][0]["text"]["content"]), 300)
-
 
 class SaveLinkUseCaseSummaryFormattingTest(unittest.IsolatedAsyncioTestCase):
-    async def test_semantic_summary_is_sent_to_notion_body(self):
+    async def test_display_points_are_joined_without_bullet_prefixes(self):
         deps = {
             "db": AsyncMock(),
             "user_repo": AsyncMock(),
@@ -141,7 +131,13 @@ class SaveLinkUseCaseSummaryFormattingTest(unittest.IsolatedAsyncioTestCase):
         )
         deps["openai"].analyze_content.return_value = SimpleNamespace(
             title="AI Title",
-            semantic_summary="문장형 요약이다. 핵심 맥락과 중요한 정보를 자연스럽게 설명한다.",
+            semantic_summary="문장형 요약",
+            display_points=[
+                "첫 줄은 자연스러운 요약문이다.",
+                "둘째 줄은 구체 정보를 담는다.",
+                "셋째 줄은 추가 맥락을 담는다.",
+                "넷째 줄은 일정이나 수치를 담는다.",
+            ],
             category="AI",
             keywords=["a", "b", "c", "d", "e"],
         )
@@ -162,7 +158,12 @@ class SaveLinkUseCaseSummaryFormattingTest(unittest.IsolatedAsyncioTestCase):
             category="AI",
             keywords=["a", "b", "c", "d", "e"],
             description="OG meta description",
-            ai_summary="문장형 요약이다. 핵심 맥락과 중요한 정보를 자연스럽게 설명한다.",
+            ai_summary=(
+                "첫 줄은 자연스러운 요약문이다.\n"
+                "둘째 줄은 구체 정보를 담는다.\n"
+                "셋째 줄은 추가 맥락을 담는다.\n"
+                "넷째 줄은 일정이나 수치를 담는다."
+            ),
             url="https://example.com/post",
             memo=None,
         )
