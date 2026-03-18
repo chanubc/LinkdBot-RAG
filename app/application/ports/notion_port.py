@@ -35,6 +35,6 @@ class NotionPort(ABC):
         """Notion DB에 행 추가 후 페이지 URL 반환.
 
         description: og:description (원문 메타 설명)
-        ai_summary: AI가 생성한 bullet 요약
+        ai_summary: AI가 생성한 줄바꿈 요약 본문
         """
         pass
