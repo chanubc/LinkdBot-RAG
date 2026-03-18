@@ -30,21 +30,13 @@ class SearchUseCase:
     async def execute(self, user_id: int, query: str, top_k: int = 5) -> list[dict]:
         """Search-first retrieval with query normalization fallback."""
         queries = _build_search_queries(query)
-        merged = []
-        seen_queries = set()
-
-        for candidate in queries:
-            if candidate in seen_queries:
-                continue
-            seen_queries.add(candidate)
-
-            raw_results = await self._retriever.retrieve(user_id, candidate, top_k * 2)
-            merged = _merge_best_results(merged, raw_results)
-
-            if len(self._reranker.rerank(merged, top_k)) >= top_k:
-                break
-
-        return self._reranker.rerank(merged, top_k)
+        raw_results = await self._retriever.retrieve(
+            user_id,
+            query,
+            top_k * 2,
+            search_queries=queries,
+        )
+        return self._reranker.rerank(raw_results, top_k)
 
 
 def _build_search_queries(query: str) -> list[str]:
@@ -87,15 +79,3 @@ def _strip_trailing_punctuation(token: str) -> str:
 def _split_known_compound_token(token: str) -> str:
     return _COMPOUND_SPLIT_MAP.get(token, token)
 
-
-def _merge_best_results(existing: list[dict], incoming: list[dict]) -> list[dict]:
-    best: dict[object, dict] = {}
-
-    for result in existing + incoming:
-        link_id = result.get("link_id")
-        key = link_id if link_id is not None else (result.get("url"), result.get("title"))
-        prev = best.get(key)
-        if prev is None or result.get("similarity", 0) > prev.get("similarity", 0):
-            best[key] = result
-
-    return list(best.values())

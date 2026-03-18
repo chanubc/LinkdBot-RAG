@@ -26,50 +26,78 @@ class HybridRetriever:
         self._openai = openai
         self._chunk_repo = chunk_repo
 
-    async def retrieve(self, user_id: int, query: str, top_k: int = 10) -> list[dict]:
+    async def retrieve(
+        self,
+        user_id: int,
+        query: str,
+        top_k: int = 10,
+        *,
+        search_queries: list[str] | None = None,
+    ) -> list[dict]:
         """Dense + LLM Keyword Overlap 하이브리드 검색.
 
-        chunk 경로(search_similar) + OG summary_embedding 경로(search_og_links)를 병합.
-        DB는 recall_k로 넓게 조회 후 keyword rescoring → link_id dedupe
-        → score cutoff → 최종 top_k 반환.
+        chunk 경로(search_similar) + BM25 lexical 경로(search_bm25)
+        + OG summary_embedding 경로(search_og_links)를 병합.
+        SearchUseCase can supply multiple lexical `search_queries`, but the
+        embedding for `query` is computed only once and reused across those
+        lexical fan-out passes.
         """
         [embedding] = await self._openai.embed([query])
         recall_k = min(max(top_k * _RECALL_MULTIPLIER, _MIN_RECALL_K), _MAX_RECALL_K)
         bm25_k = min(max(top_k * _BM25_RECALL_MULTIPLIER, _MIN_BM25_K), _MAX_BM25_K)
-        chunk_results = await self._chunk_repo.search_similar(user_id, embedding, recall_k, query_text=query)
         og_results = await self._chunk_repo.search_og_links(user_id, embedding, recall_k)
-        bm25_query = _build_bm25_query(query)
-        bm25_results = await self._chunk_repo.search_bm25(user_id, bm25_query, bm25_k)
-        merged = _merge_results(chunk_results, og_results, bm25_results)
-        rescored = _rescore_with_keywords(merged, query)
-        deduped = _dedupe_by_link(rescored)
-        return _apply_score_cutoff(deduped)[:top_k]
+
+        merged_across_queries: list[dict] = []
+        seen_queries: set[str] = set()
+        query_candidates = search_queries or [query]
+
+        for query_text in query_candidates:
+            candidate = query_text.strip()
+            if not candidate or candidate in seen_queries:
+                continue
+            seen_queries.add(candidate)
+
+            chunk_results = await self._chunk_repo.search_similar(
+                user_id,
+                embedding,
+                recall_k,
+                query_text=candidate,
+            )
+            bm25_results = await self._chunk_repo.search_bm25(
+                user_id,
+                _build_bm25_query(candidate),
+                bm25_k,
+            )
+            merged = _merge_results(chunk_results, og_results, bm25_results)
+            rescored = _rescore_with_keywords(merged, candidate)
+            deduped = _dedupe_by_link(rescored)
+            merged_across_queries = _merge_results(merged_across_queries, deduped)
+
+        final_results = _dedupe_by_link(merged_across_queries)
+        return _apply_score_cutoff(final_results)[:top_k]
 
 
-def _merge_results(
-    chunk_results: list[dict],
-    og_results: list[dict],
-    bm25_results: list[dict],
-) -> list[dict]:
+def _merge_results(*result_sets: list[dict]) -> list[dict]:
     """Dense/OG/BM25 결과를 병합하고, 같은 link 중 더 강한 후보로 업그레이드한다."""
     ordered: list[dict] = []
     index_by_link: dict[int, int] = {}
 
-    for result in chunk_results + og_results + bm25_results:
-        link_id = result.get("link_id")
-        if link_id is None:
-            ordered.append(result)
-            continue
+    for result_set in result_sets:
+        for result in result_set:
+            link_id = result.get("link_id")
+            if link_id is None:
+                ordered.append(result)
+                continue
 
-        existing_index = index_by_link.get(link_id)
-        if existing_index is None:
-            index_by_link[link_id] = len(ordered)
-            ordered.append(result)
-            continue
+            existing_index = index_by_link.get(link_id)
+            if existing_index is None:
+                index_by_link[link_id] = len(ordered)
+                ordered.append(result)
+                continue
 
-        existing = ordered[existing_index]
-        if result.get("similarity", 0) > existing.get("similarity", 0):
-            ordered[existing_index] = result
+            existing = ordered[existing_index]
+            if result.get("similarity", 0) > existing.get("similarity", 0):
+                ordered[existing_index] = result
 
     return ordered
 

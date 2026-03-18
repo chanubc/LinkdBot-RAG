@@ -13,12 +13,12 @@ This patch adds a **non-Kiwi sparse recall path** that keeps the existing
 ## Design
 
 1. `HybridRetriever.retrieve()` still fetches the dense hybrid chunk path and OG path.
-2. In parallel, it now also calls `ChunkRepository.search_sparse_candidates()`.
-3. That path:
-   - reuses `_build_query_variants(query)`
-   - queries the existing `chunks.tsv` index with those variants
-   - ranks chunk hits with `ts_rank_cd(..., 32)`
-   - returns the top lexical candidates for the normal Python rescoring/dedupe flow
+2. It now also calls `ChunkRepository.search_bm25()` for the lexical path.
+3. Search-driven fallback queries (for example `채용공고 링크` → `채용공고` → `채용 공고`) are built in `SearchUseCase`, but `HybridRetriever` computes the embedding **once** for the original query and fans out only the lexical/database lookups across those query texts.
+4. `search_bm25()`:
+   - uses weighted title/summary/content `to_tsvector('simple', ...)`
+   - queries with `websearch_to_tsquery('simple', ...)`
+   - returns lexical candidates for the normal Python rescoring/dedupe flow
 
 So the retrieval stack is now:
 

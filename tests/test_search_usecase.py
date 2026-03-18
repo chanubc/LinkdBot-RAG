@@ -18,23 +18,23 @@ def _make_result(link_id: int, title: str, similarity: float) -> dict:
 @pytest.mark.asyncio
 async def test_search_usecase_tries_normalized_queries_when_results_are_sparse():
     retriever = AsyncMock()
-    retriever.retrieve.side_effect = [
-        [_make_result(1, "하나증권 2026 신입사원 공개채용", 0.40)],
-        [_make_result(1, "하나증권 2026 신입사원 공개채용", 0.42)],
-        [
-            _make_result(1, "하나증권 2026 신입사원 공개채용", 0.57),
-            _make_result(2, "롯데이노베이트 2026 신입사원 채용 공고", 0.51),
-            _make_result(3, "아이샵케어 채용 안내", 0.49),
-            _make_result(4, "2026 삼성그룹 채용 핵심 가이드", 0.40),
-            _make_result(5, "NH투자증권 2026년 신입사원 공채", 0.39),
-        ],
+    retriever.retrieve.return_value = [
+        _make_result(1, "하나증권 2026 신입사원 공개채용", 0.57),
+        _make_result(2, "롯데이노베이트 2026 신입사원 채용 공고", 0.51),
+        _make_result(3, "아이샵케어 채용 안내", 0.49),
+        _make_result(4, "2026 삼성그룹 채용 핵심 가이드", 0.40),
+        _make_result(5, "NH투자증권 2026년 신입사원 공채", 0.39),
     ]
     usecase = SearchUseCase(retriever=retriever, reranker=SimpleReranker())
 
     results = await usecase.execute(111, "채용공고 링크 가져와", top_k=5)
 
-    called_queries = [call.args[1] for call in retriever.retrieve.await_args_list]
-    assert called_queries == ["채용공고 링크 가져와", "채용공고", "채용 공고"]
+    retriever.retrieve.assert_awaited_once_with(
+        111,
+        "채용공고 링크 가져와",
+        10,
+        search_queries=["채용공고 링크 가져와", "채용공고", "채용 공고"],
+    )
     assert [r["link_id"] for r in results] == [1, 2, 3, 4, 5]
 
 
@@ -52,17 +52,21 @@ async def test_search_usecase_stops_after_first_query_when_top_k_is_filled():
 
     results = await usecase.execute(111, "롯데 채용 공고", top_k=5)
 
-    retriever.retrieve.assert_awaited_once_with(111, "롯데 채용 공고", 10)
+    retriever.retrieve.assert_awaited_once_with(
+        111,
+        "롯데 채용 공고",
+        10,
+        search_queries=["롯데 채용 공고"],
+    )
     assert [r["link_id"] for r in results] == [1, 2, 3, 4, 5]
 
 
 @pytest.mark.asyncio
 async def test_search_usecase_dedupes_same_link_across_fallback_queries():
     retriever = AsyncMock()
-    retriever.retrieve.side_effect = [
-        [_make_result(1, "A", 0.35)],
-        [_make_result(1, "A", 0.55)],
-        [_make_result(1, "A", 0.55), _make_result(2, "B", 0.50)],
+    retriever.retrieve.return_value = [
+        _make_result(1, "A", 0.55),
+        _make_result(2, "B", 0.50),
     ]
     usecase = SearchUseCase(retriever=retriever, reranker=SimpleReranker())
 
