@@ -10,6 +10,9 @@ _KEYWORD_WEIGHT_OG = 0.1
 _RECALL_MULTIPLIER = 5
 _MIN_RECALL_K = 30
 _MAX_RECALL_K = 100
+_BM25_RECALL_MULTIPLIER = 2
+_MIN_BM25_K = 10
+_MAX_BM25_K = 30
 
 _MIN_RESULT_SIMILARITY = 0.30
 _RELATIVE_RESULT_RATIO = 0.60
@@ -32,19 +35,43 @@ class HybridRetriever:
         """
         [embedding] = await self._openai.embed([query])
         recall_k = min(max(top_k * _RECALL_MULTIPLIER, _MIN_RECALL_K), _MAX_RECALL_K)
+        bm25_k = min(max(top_k * _BM25_RECALL_MULTIPLIER, _MIN_BM25_K), _MAX_BM25_K)
         chunk_results = await self._chunk_repo.search_similar(user_id, embedding, recall_k, query_text=query)
         og_results = await self._chunk_repo.search_og_links(user_id, embedding, recall_k)
-        merged = _merge_results(chunk_results, og_results)
+        bm25_query = _build_bm25_query(query)
+        bm25_results = await self._chunk_repo.search_bm25(user_id, bm25_query, bm25_k)
+        merged = _merge_results(chunk_results, og_results, bm25_results)
         rescored = _rescore_with_keywords(merged, query)
         deduped = _dedupe_by_link(rescored)
         return _apply_score_cutoff(deduped)[:top_k]
 
 
-def _merge_results(chunk_results: list[dict], og_results: list[dict]) -> list[dict]:
-    """chunk 경로와 OG summary_embedding 경로 결과를 병합. link_id 기준 chunk 경로 우선."""
-    seen: set[int] = {r["link_id"] for r in chunk_results if r.get("link_id") is not None}
-    extra = [r for r in og_results if r.get("link_id") not in seen]
-    return chunk_results + extra
+def _merge_results(
+    chunk_results: list[dict],
+    og_results: list[dict],
+    bm25_results: list[dict],
+) -> list[dict]:
+    """Dense/OG/BM25 결과를 병합하고, 같은 link 중 더 강한 후보로 업그레이드한다."""
+    ordered: list[dict] = []
+    index_by_link: dict[int, int] = {}
+
+    for result in chunk_results + og_results + bm25_results:
+        link_id = result.get("link_id")
+        if link_id is None:
+            ordered.append(result)
+            continue
+
+        existing_index = index_by_link.get(link_id)
+        if existing_index is None:
+            index_by_link[link_id] = len(ordered)
+            ordered.append(result)
+            continue
+
+        existing = ordered[existing_index]
+        if result.get("similarity", 0) > existing.get("similarity", 0):
+            ordered[existing_index] = result
+
+    return ordered
 
 
 def _build_query_variants(query: str) -> list[str]:
@@ -108,6 +135,14 @@ def _build_query_variants(query: str) -> list[str]:
 def _strip_trailing_punctuation(token: str) -> str:
     """Drop common sentence-ending punctuation from a token."""
     return token.rstrip(_TRAILING_PUNCTUATION)
+
+
+def _build_bm25_query(query: str) -> str:
+    """Build a compact raw-text lexical query without Kiwi-specific preprocessing."""
+    tokens = [_strip_trailing_punctuation(token) for token in query.split()]
+    stripped_tokens = [strip_particles(token) for token in tokens if token]
+    normalized = [token for token in stripped_tokens if token]
+    return " ".join(normalized) or query.strip()
 
 
 def _token_matches(query_token: str, keyword: str) -> bool:

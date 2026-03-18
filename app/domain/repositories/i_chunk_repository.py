@@ -25,3 +25,11 @@ class IChunkRepository(ABC):
         query_embedding: list[float],
         top_k: int = 5,
     ) -> list[dict]: ...
+
+    @abstractmethod
+    async def search_bm25(
+        self,
+        user_id: int,
+        query_text: str,
+        top_k: int = 5,
+    ) -> list[dict]: ...

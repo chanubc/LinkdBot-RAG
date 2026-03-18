@@ -70,6 +70,7 @@ def make_retriever() -> tuple[HybridRetriever, AsyncMock]:
     openai = AsyncMock()
     openai.embed.return_value = [[0.1] * 5]
     chunk_repo = AsyncMock()
+    chunk_repo.search_bm25.return_value = []
     return HybridRetriever(openai=openai, chunk_repo=chunk_repo), chunk_repo
 
 
@@ -82,6 +83,7 @@ def make_retriever_chunk_only() -> tuple[HybridRetriever, AsyncMock]:
     openai.embed.return_value = [[0.1] * 5]
     chunk_repo = AsyncMock()
     chunk_repo.search_og_links.return_value = []
+    chunk_repo.search_bm25.return_value = []
     return HybridRetriever(openai=openai, chunk_repo=chunk_repo), chunk_repo
 
 

@@ -9,6 +9,7 @@ def make_retriever():
     openai.embed.return_value = [[0.1] * 5]
     chunk_repo = AsyncMock()
     chunk_repo.search_og_links.return_value = []
+    chunk_repo.search_bm25.return_value = []
     return HybridRetriever(openai=openai, chunk_repo=chunk_repo), chunk_repo
 
 
@@ -517,3 +518,39 @@ async def test_particle_query_with_trailing_punctuation_still_matches():
     results = await retriever.retrieve(user_id=111, query="채용공고를?", top_k=5)
 
     assert results[0]["link_id"] == 1, "Trailing punctuation should not drop particle-stripped keyword boost"
+
+
+@pytest.mark.asyncio
+async def test_non_kiwi_bm25_path_recovers_relevant_link_when_dense_misses():
+    """BM25 fallback should recover a lexical match even when dense/OG paths return nothing."""
+    retriever, chunk_repo = make_retriever()
+    chunk_repo.search_similar.return_value = []
+    chunk_repo.search_og_links.return_value = []
+    chunk_repo.search_bm25.return_value = [
+        {
+            **_make_result(1, "채용공고 링크 모음", ["채용공고", "링크"], dense_score=0.0),
+            "summary": "채용공고 링크를 빠르게 찾는 모음집",
+            "chunk_content": "채용공고 링크 정리",
+            "similarity": 0.82,
+            "bm25_score": 0.82,
+        },
+    ]
+
+    results = await retriever.retrieve(user_id=111, query="채용공고 링크", top_k=5)
+
+    assert [r["link_id"] for r in results] == [1]
+    chunk_repo.search_bm25.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_non_kiwi_bm25_query_normalizes_particles_before_search():
+    """BM25 query should use raw non-Kiwi normalization such as particle stripping."""
+    retriever, chunk_repo = make_retriever()
+    chunk_repo.search_similar.return_value = []
+    chunk_repo.search_og_links.return_value = []
+    chunk_repo.search_bm25.return_value = []
+
+    await retriever.retrieve(user_id=111, query="채용공고를 찾아줘", top_k=5)
+
+    called_query = chunk_repo.search_bm25.await_args.args[1]
+    assert called_query == "채용공고 찾아줘"

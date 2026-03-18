@@ -108,3 +108,46 @@ async def test_search_similar_sql_keeps_phase3_hybrid_shape():
     assert "plainto_tsquery('simple', :query_text)" in sql_text
     assert "c.tsv @@" in sql_text
     assert "d.dense_score * 0.7 + COALESCE(s.sparse_score, 0) * 0.3" in sql_text
+
+
+@pytest.mark.asyncio
+async def test_search_bm25_uses_raw_non_kiwi_query_text():
+    """BM25 fallback should send the normalized raw query text unchanged to SQL."""
+    repo, db = make_repo()
+    mock_result = MagicMock()
+    mock_result.mappings.return_value = []
+    db.execute.return_value = mock_result
+
+    await repo.search_bm25(
+        user_id=1,
+        query_text="채용공고 링크",
+        top_k=10,
+    )
+
+    execute_call = db.execute.call_args
+    params = execute_call[0][1]
+
+    assert params["query_text"] == "채용공고 링크"
+    assert "morpheme_query" not in params
+
+
+@pytest.mark.asyncio
+async def test_search_bm25_sql_keeps_raw_text_rank_path():
+    """BM25 fallback SQL should rank raw title/summary/content without Kiwi fields."""
+    repo, db = make_repo()
+    mock_result = MagicMock()
+    mock_result.mappings.return_value = []
+    db.execute.return_value = mock_result
+
+    await repo.search_bm25(
+        user_id=1,
+        query_text="채용공고 링크",
+        top_k=10,
+    )
+
+    sql_text = str(db.execute.call_args[0][0])
+    assert "ts_rank_cd" in sql_text
+    assert "websearch_to_tsquery('simple', :query_text)" in sql_text
+    assert "COALESCE(c.content, '')" in sql_text
+    assert "COALESCE(l.summary, '')" in sql_text
+    assert "morpheme" not in sql_text.lower()

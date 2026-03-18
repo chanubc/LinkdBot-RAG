@@ -159,3 +159,85 @@ class ChunkRepository(IChunkRepository):
             {"emb": emb_str, "user_id": user_id, "top_k": top_k},
         )
         return [dict(row) for row in result.mappings()]
+
+    async def search_bm25(
+        self,
+        user_id: int,
+        query_text: str,
+        top_k: int = 5,
+    ) -> list[dict]:
+        """Non-Kiwi lexical fallback using PostgreSQL FTS ranking over raw text."""
+        normalized_query = query_text.strip()
+        if not normalized_query:
+            return []
+
+        sql = text("""
+            WITH chunk_docs AS (
+                SELECT
+                    l.id AS link_id,
+                    l.title,
+                    l.url,
+                    l.summary,
+                    l.category,
+                    l.keywords,
+                    l.content_source,
+                    c.content AS chunk_content,
+                    ts_rank_cd(
+                        setweight(to_tsvector('simple', COALESCE(l.title, '')), 'A') ||
+                        setweight(to_tsvector('simple', COALESCE(l.summary, '')), 'B') ||
+                        setweight(to_tsvector('simple', COALESCE(c.content, '')), 'C'),
+                        websearch_to_tsquery('simple', :query_text),
+                        32
+                    ) AS bm25_score
+                FROM chunks c
+                JOIN links l ON c.link_id = l.id
+                WHERE l.user_id = :user_id
+            ),
+            og_docs AS (
+                SELECT
+                    l.id AS link_id,
+                    l.title,
+                    l.url,
+                    l.summary,
+                    l.category,
+                    l.keywords,
+                    l.content_source,
+                    '' AS chunk_content,
+                    ts_rank_cd(
+                        setweight(to_tsvector('simple', COALESCE(l.title, '')), 'A') ||
+                        setweight(to_tsvector('simple', COALESCE(l.summary, '')), 'B'),
+                        websearch_to_tsquery('simple', :query_text),
+                        32
+                    ) AS bm25_score
+                FROM links l
+                WHERE l.user_id = :user_id
+                  AND l.summary_embedding IS NOT NULL
+                  AND NOT EXISTS (
+                      SELECT 1 FROM chunks c WHERE c.link_id = l.id
+                  )
+            )
+            SELECT
+                ranked.link_id,
+                ranked.title,
+                ranked.url,
+                ranked.summary,
+                ranked.category,
+                ranked.keywords,
+                ranked.content_source,
+                ranked.chunk_content,
+                ranked.bm25_score AS similarity,
+                ranked.bm25_score
+            FROM (
+                SELECT * FROM chunk_docs
+                UNION ALL
+                SELECT * FROM og_docs
+            ) AS ranked
+            WHERE ranked.bm25_score > 0
+            ORDER BY ranked.bm25_score DESC
+            LIMIT :top_k
+        """)
+        result = await self._db.execute(
+            sql,
+            {"user_id": user_id, "query_text": normalized_query, "top_k": top_k},
+        )
+        return [dict(row) for row in result.mappings()]
