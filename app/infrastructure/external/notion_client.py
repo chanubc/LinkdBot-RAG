@@ -115,13 +115,14 @@ def _build_summary_blocks(ai_summary: str) -> list[dict]:
         text = line.lstrip("•").strip()
         if not text:
             continue
-        blocks.append({
-            "object": "block",
-            "type": "paragraph",
-            "paragraph": {
-                "rich_text": [{"type": "text", "text": {"content": text[:2000]}}]
-            },
-        })
+        for start in range(0, len(text), 2000):
+            blocks.append({
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [{"type": "text", "text": {"content": text[start:start + 2000]}}]
+                },
+            })
     return blocks
 
 

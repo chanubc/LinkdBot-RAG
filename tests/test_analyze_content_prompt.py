@@ -4,11 +4,10 @@ from app.core.prompts.analyze_content import ANALYZE_CONTENT_PROMPT
 
 
 class AnalyzeContentPromptTest(unittest.TestCase):
-    def test_prompt_requests_natural_lines_without_bullets(self):
-        self.assertIn("display_points: 4-5 short lines", ANALYZE_CONTENT_PROMPT)
-        self.assertIn("natural sentence", ANALYZE_CONTENT_PROMPT)
-        self.assertIn("include concrete details", ANALYZE_CONTENT_PROMPT)
-        self.assertIn("do NOT include bullet markers", ANALYZE_CONTENT_PROMPT)
+    def test_prompt_uses_single_readable_semantic_summary(self):
+        self.assertIn("semantic_summary: one readable paragraph", ANALYZE_CONTENT_PROMPT)
+        self.assertIn("usable for semantic search and as Notion body text", ANALYZE_CONTENT_PROMPT)
+        self.assertNotIn("display_points", ANALYZE_CONTENT_PROMPT)
 
 
 if __name__ == "__main__":
