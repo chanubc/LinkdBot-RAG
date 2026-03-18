@@ -1,5 +1,10 @@
 import json
+import re
 
+from app.application.services.search_query_builder import (
+    build_search_queries,
+    strip_trailing_punctuation,
+)
 from app.domain.repositories.i_chunk_repository import IChunkRepository
 from app.application.ports.ai_analysis_port import AIAnalysisPort
 from app.infrastructure.rag.korean_utils import strip_particles
@@ -10,10 +15,13 @@ _KEYWORD_WEIGHT_OG = 0.1
 _RECALL_MULTIPLIER = 5
 _MIN_RECALL_K = 30
 _MAX_RECALL_K = 100
+_BM25_RECALL_MULTIPLIER = 2
+_MIN_BM25_K = 10
+_MAX_BM25_K = 30
 
 _MIN_RESULT_SIMILARITY = 0.30
 _RELATIVE_RESULT_RATIO = 0.60
-_TRAILING_PUNCTUATION = "!?.,:;)]}\"'”’"
+_HANGUL_COMPOUND_RE = re.compile(r"^[가-힣]{4}$")
 
 
 class HybridRetriever:
@@ -23,28 +31,85 @@ class HybridRetriever:
         self._openai = openai
         self._chunk_repo = chunk_repo
 
-    async def retrieve(self, user_id: int, query: str, top_k: int = 10) -> list[dict]:
+    async def retrieve(
+        self,
+        user_id: int,
+        query: str,
+        top_k: int = 10,
+        *,
+        search_queries: list[str] | None = None,
+    ) -> list[dict]:
         """Dense + LLM Keyword Overlap 하이브리드 검색.
 
-        chunk 경로(search_similar) + OG summary_embedding 경로(search_og_links)를 병합.
-        DB는 recall_k로 넓게 조회 후 keyword rescoring → link_id dedupe
-        → score cutoff → 최종 top_k 반환.
+        chunk 경로(search_similar) + BM25 lexical 경로(search_bm25)
+        + OG summary_embedding 경로(search_og_links)를 병합.
+        SearchUseCase can supply multiple lexical `search_queries`, but the
+        embedding for `query` is computed only once and reused across those
+        lexical fan-out passes.
         """
         [embedding] = await self._openai.embed([query])
         recall_k = min(max(top_k * _RECALL_MULTIPLIER, _MIN_RECALL_K), _MAX_RECALL_K)
-        chunk_results = await self._chunk_repo.search_similar(user_id, embedding, recall_k, query_text=query)
+        bm25_k = min(max(top_k * _BM25_RECALL_MULTIPLIER, _MIN_BM25_K), _MAX_BM25_K)
         og_results = await self._chunk_repo.search_og_links(user_id, embedding, recall_k)
-        merged = _merge_results(chunk_results, og_results)
-        rescored = _rescore_with_keywords(merged, query)
-        deduped = _dedupe_by_link(rescored)
-        return _apply_score_cutoff(deduped)[:top_k]
+
+        merged_across_queries: list[dict] = []
+        seen_queries: set[str] = set()
+        query_candidates = search_queries or build_search_queries(query)
+
+        for query_index, query_text in enumerate(query_candidates):
+            candidate = query_text.strip()
+            if not candidate or candidate in seen_queries:
+                continue
+            seen_queries.add(candidate)
+
+            chunk_results = await self._chunk_repo.search_similar(
+                user_id,
+                embedding,
+                recall_k,
+                query_text=candidate,
+            )
+            bm25_results = await self._chunk_repo.search_bm25(
+                user_id,
+                _build_bm25_query(candidate),
+                bm25_k,
+            )
+            merged = _merge_results(chunk_results, og_results, bm25_results)
+            rescored = _rescore_with_keywords(merged, candidate)
+            deduped = _apply_score_cutoff(_dedupe_by_link(rescored))
+            merged_across_queries = _merge_query_batches(
+                merged_across_queries,
+                deduped,
+                query_index=query_index,
+            )
+            if len(merged_across_queries) >= top_k:
+                break
+
+        return merged_across_queries[:top_k]
 
 
-def _merge_results(chunk_results: list[dict], og_results: list[dict]) -> list[dict]:
-    """chunk 경로와 OG summary_embedding 경로 결과를 병합. link_id 기준 chunk 경로 우선."""
-    seen: set[int] = {r["link_id"] for r in chunk_results if r.get("link_id") is not None}
-    extra = [r for r in og_results if r.get("link_id") not in seen]
-    return chunk_results + extra
+def _merge_results(*result_sets: list[dict]) -> list[dict]:
+    """Dense/OG/BM25 결과를 병합하고, 같은 link 중 더 강한 후보로 업그레이드한다."""
+    ordered: list[dict] = []
+    index_by_link: dict[int, int] = {}
+
+    for result_set in result_sets:
+        for result in result_set:
+            link_id = result.get("link_id")
+            if link_id is None:
+                ordered.append(result)
+                continue
+
+            existing_index = index_by_link.get(link_id)
+            if existing_index is None:
+                index_by_link[link_id] = len(ordered)
+                ordered.append(result)
+                continue
+
+            existing = ordered[existing_index]
+            if result.get("similarity", 0) > existing.get("similarity", 0):
+                ordered[existing_index] = result
+
+    return ordered
 
 
 def _build_query_variants(query: str) -> list[str]:
@@ -66,7 +131,7 @@ def _build_query_variants(query: str) -> list[str]:
     base = query.strip()
     variants = [base]
 
-    cleaned_tokens = [_strip_trailing_punctuation(t) for t in base.split()]
+    cleaned_tokens = [strip_trailing_punctuation(t) for t in base.split()]
     tokens = [t for t in cleaned_tokens if t]
     cleaned_base = " ".join(tokens)
     if cleaned_base and cleaned_base not in variants:
@@ -102,12 +167,70 @@ def _build_query_variants(query: str) -> list[str]:
         if variant not in variants:
             variants.append(variant)
 
+    split_variant = " ".join(_split_hangul_compound_token(token) for token in stripped_tokens)
+    if split_variant and split_variant not in variants:
+        variants.append(split_variant)
+
     return variants
+def _split_hangul_compound_token(token: str) -> str:
+    """Generically split simple 4-syllable Hangul compounds into 2+2 chunks.
+
+    This avoids domain-specific token maps while still helping common compounds
+    like `채용공고`, `공개채용`, `채용안내` match spaced titles.
+    """
+    if _HANGUL_COMPOUND_RE.match(token):
+        return f"{token[:2]} {token[2:]}"
+    return token
 
 
-def _strip_trailing_punctuation(token: str) -> str:
-    """Drop common sentence-ending punctuation from a token."""
-    return token.rstrip(_TRAILING_PUNCTUATION)
+def _build_bm25_query(query: str) -> str:
+    """Build a compact raw-text lexical query without Kiwi-specific preprocessing."""
+    tokens = [strip_trailing_punctuation(token) for token in query.split()]
+    stripped_tokens = [strip_particles(token) for token in tokens if token]
+    normalized = [token for token in stripped_tokens if token]
+    return " ".join(normalized) or query.strip()
+
+
+def _merge_query_batches(
+    existing: list[dict],
+    incoming: list[dict],
+    *,
+    query_index: int,
+) -> list[dict]:
+    """Preserve exact-query ordering while allowing duplicate upgrades.
+
+    The first lexical batch is the exact user query. Broader fallback batches
+    may fill recall gaps, but they should not reorder unrelated exact-query
+    hits above the user's original intent.
+    """
+    if not existing:
+        return incoming
+
+    ordered = existing[:]
+    index_by_link = {
+        result.get("link_id"): idx
+        for idx, result in enumerate(ordered)
+        if result.get("link_id") is not None
+    }
+
+    for result in incoming:
+        link_id = result.get("link_id")
+        if link_id is None:
+            ordered.append(result)
+            continue
+
+        existing_index = index_by_link.get(link_id)
+        if existing_index is None:
+            index_by_link[link_id] = len(ordered)
+            ordered.append(result)
+            continue
+
+        if result.get("similarity", 0) > ordered[existing_index].get("similarity", 0):
+            ordered[existing_index] = result
+
+    if query_index == 0:
+        return sorted(ordered, key=lambda item: item.get("similarity", 0), reverse=True)
+    return ordered
 
 
 def _token_matches(query_token: str, keyword: str) -> bool:

@@ -53,7 +53,7 @@
 | Priority | Feature | Description |
 |---|---|---|
 | 1 | **Proactive Agent** | 사용자의 저장 패턴과 관심사 변화를 분석해 `drift`를 감지하고, `reactivation` 점수를 기반으로 다시 볼 만한 링크를 주간 리포트로 먼저 제안합니다. 이 프로젝트의 차별점이 가장 강하게 드러나는 영역입니다. |
-| 2 | **Hybrid RAG (Dense + Sparse + Reranking)** | pgvector 기반 dense vector search와 keyword/FTS 기반 sparse search를 함께 사용하고, 이후 reranking과 cutoff optimization까지 적용해 관련 링크를 더 안정적으로 찾습니다. `/search` 품질뿐 아니라 `/ask` 답변 품질의 기반이 됩니다. |
+| 2 | **Hybrid RAG (Dense + Sparse + Reranking)** | pgvector 기반 dense vector search와 keyword/FTS 기반 sparse search를 함께 사용하고, non-Kiwi BM25-style lexical recall path + reranking + cutoff optimization까지 적용해 관련 링크를 더 안정적으로 찾습니다. `/search` 품질뿐 아니라 `/ask` 답변 품질의 기반이 됩니다. |
 | 3 | **지식 Q&A 에이전트** | `/ask` 요청 시 저장된 링크와 메모를 조회한 뒤 근거 기반 답변을 생성합니다. 단순 챗봇이 아니라 개인 지식 베이스를 활용하는 응답 흐름입니다. |
 | 4 | **본문 스크랩 & Notion 요약 자동화** | 텔레그램에 링크만 보내면 해당 페이지의 본문 내용을 스크랩/크롤링하고, 요약·키워드·임베딩을 생성한 뒤 저장합니다. 이후 핵심 요약과 메타데이터를 Notion에도 자동 동기화해 다시 보기 쉬운 형태로 남깁니다. |
 | 5 | **멀티 서피스 UX** | 텔레그램을 메인 인터페이스로 유지하면서, Streamlit 대시보드와 Notion을 보조 표면으로 연결해 탐색/회고/재사용을 돕습니다. |

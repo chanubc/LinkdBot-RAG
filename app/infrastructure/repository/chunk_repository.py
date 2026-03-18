@@ -159,3 +159,153 @@ class ChunkRepository(IChunkRepository):
             {"emb": emb_str, "user_id": user_id, "top_k": top_k},
         )
         return [dict(row) for row in result.mappings()]
+
+    async def search_bm25(
+        self,
+        user_id: int,
+        query_text: str,
+        top_k: int = 5,
+    ) -> list[dict]:
+        """Non-Kiwi lexical fallback using PostgreSQL FTS ranking over raw text."""
+        normalized_query = query_text.strip()
+        if not normalized_query:
+            return []
+
+        sql = text("""
+            WITH query AS (
+                SELECT
+                    plainto_tsquery('simple', :query_text) AS q,
+                    plainto_tsquery('simple', replace(:query_text, ' ', '')) AS compact_q
+            ),
+            chunk_docs AS (
+                SELECT DISTINCT ON (l.id)
+                    l.id AS link_id,
+                    l.title,
+                    l.url,
+                    l.summary,
+                    l.category,
+                    l.keywords,
+                    l.content_source,
+                    c.content AS chunk_content,
+                    GREATEST(
+                        ts_rank_cd(
+                            setweight(to_tsvector('simple', COALESCE(l.title, '')), 'A') ||
+                            setweight(to_tsvector('simple', COALESCE(l.summary, '')), 'B') ||
+                            setweight(c.tsv, 'C'),
+                            query.q,
+                            32
+                        ),
+                        ts_rank_cd(
+                            setweight(
+                                to_tsvector('simple', replace(COALESCE(l.title, ''), ' ', '')),
+                                'A'
+                            ) ||
+                            setweight(
+                                to_tsvector('simple', replace(COALESCE(l.summary, ''), ' ', '')),
+                                'B'
+                            ),
+                            query.compact_q,
+                            32
+                        )
+                    ) AS bm25_score
+                FROM query
+                JOIN chunks c
+                  ON c.tsv IS NOT NULL
+                JOIN links l ON c.link_id = l.id
+                WHERE l.user_id = :user_id
+                  AND (
+                    c.tsv @@ query.q OR
+                    (
+                        setweight(
+                            to_tsvector('simple', replace(COALESCE(l.title, ''), ' ', '')),
+                            'A'
+                        ) ||
+                        setweight(
+                            to_tsvector('simple', replace(COALESCE(l.summary, ''), ' ', '')),
+                            'B'
+                        )
+                    ) @@ query.compact_q
+                  )
+                ORDER BY l.id, bm25_score DESC, c.id
+            ),
+            og_candidates AS (
+                SELECT
+                    l.id AS link_id,
+                    l.title,
+                    l.url,
+                    l.summary,
+                    l.category,
+                    l.keywords,
+                    l.content_source,
+                    '' AS chunk_content,
+                    (
+                        setweight(to_tsvector('simple', COALESCE(l.title, '')), 'A') ||
+                        setweight(to_tsvector('simple', COALESCE(l.summary, '')), 'B')
+                    ) AS og_tsv,
+                    (
+                        setweight(
+                            to_tsvector('simple', replace(COALESCE(l.title, ''), ' ', '')),
+                            'A'
+                        ) ||
+                        setweight(
+                            to_tsvector('simple', replace(COALESCE(l.summary, ''), ' ', '')),
+                            'B'
+                        )
+                    ) AS og_compact_tsv
+                FROM links l
+                WHERE l.user_id = :user_id
+                  AND NOT EXISTS (
+                      SELECT 1 FROM chunks c WHERE c.link_id = l.id
+                  )
+            ),
+            og_docs AS (
+                SELECT
+                    og.link_id,
+                    og.title,
+                    og.url,
+                    og.summary,
+                    og.category,
+                    og.keywords,
+                    og.content_source,
+                    og.chunk_content,
+                    GREATEST(
+                        ts_rank_cd(
+                            og.og_tsv,
+                            query.q,
+                            32
+                        ),
+                        ts_rank_cd(
+                            og.og_compact_tsv,
+                            query.compact_q,
+                            32
+                        )
+                    ) AS bm25_score
+                FROM og_candidates og
+                CROSS JOIN query
+                WHERE og.og_tsv @@ query.q OR og.og_compact_tsv @@ query.compact_q
+            )
+            SELECT
+                ranked.link_id,
+                ranked.title,
+                ranked.url,
+                ranked.summary,
+                ranked.category,
+                ranked.keywords,
+                ranked.content_source,
+                ranked.chunk_content,
+                ranked.bm25_score AS similarity,
+                ranked.bm25_score
+            FROM (
+                SELECT * FROM chunk_docs
+                UNION ALL
+                SELECT * FROM og_docs
+            ) AS ranked
+            WHERE ranked.bm25_score > 0
+            ORDER BY ranked.bm25_score DESC
+            LIMIT :top_k
+        """)
+        result = await self._db.execute(
+            sql,
+            {"user_id": user_id, "query_text": normalized_query, "top_k": top_k},
+        )
+        return [dict(row) for row in result.mappings()]

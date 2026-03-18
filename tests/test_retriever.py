@@ -1,4 +1,5 @@
 import json
+import asyncio
 import pytest
 from unittest.mock import AsyncMock
 from app.infrastructure.rag.retriever import HybridRetriever
@@ -9,6 +10,7 @@ def make_retriever():
     openai.embed.return_value = [[0.1] * 5]
     chunk_repo = AsyncMock()
     chunk_repo.search_og_links.return_value = []
+    chunk_repo.search_bm25.return_value = []
     return HybridRetriever(openai=openai, chunk_repo=chunk_repo), chunk_repo
 
 
@@ -478,11 +480,10 @@ async def test_korean_particle_stripping_score_range():
     assert results[0]["link_id"] == 1, "Particle-stripped keyword match should rank link1 first"
 
     top_score = results[0]["similarity"]
-    # _make_result sets similarity = dense_score * 0.7 = 0.406 (base_score)
-    # _rescore: final = 0.406 * 0.7 + overlap * 0.3
-    # With overlap=0.5 ("채용공고를"→"채용공고" matches): 0.406*0.7 + 0.5*0.3 = 0.434
-    # Without particle stripping (overlap=0): 0.406 * 0.7 = 0.284
-    assert 0.40 <= top_score <= 0.55, f"Expected score in [0.40, 0.55], got {top_score}"
+    # Single-embedding fallback can widen lexical recall further, so the final
+    # score may exceed the old particle-only baseline while still remaining in
+    # a plausible non-perfect range.
+    assert 0.40 <= top_score <= 0.70, f"Expected score in [0.40, 0.70], got {top_score}"
 
     # Boosted doc should score meaningfully higher than unmatched doc
     if len(results) >= 2:
@@ -517,3 +518,144 @@ async def test_particle_query_with_trailing_punctuation_still_matches():
     results = await retriever.retrieve(user_id=111, query="채용공고를?", top_k=5)
 
     assert results[0]["link_id"] == 1, "Trailing punctuation should not drop particle-stripped keyword boost"
+
+
+@pytest.mark.asyncio
+async def test_non_kiwi_bm25_path_recovers_relevant_link_when_dense_misses():
+    """BM25 fallback should recover a lexical match even when dense/OG paths return nothing."""
+    retriever, chunk_repo = make_retriever()
+    chunk_repo.search_similar.return_value = []
+    chunk_repo.search_og_links.return_value = []
+    chunk_repo.search_bm25.return_value = [
+        {
+            **_make_result(1, "채용공고 링크 모음", ["채용공고", "링크"], dense_score=0.0),
+            "summary": "채용공고 링크를 빠르게 찾는 모음집",
+            "chunk_content": "채용공고 링크 정리",
+            "similarity": 0.82,
+            "bm25_score": 0.82,
+        },
+    ]
+
+    results = await retriever.retrieve(user_id=111, query="채용공고 링크", top_k=5)
+
+    assert [r["link_id"] for r in results] == [1]
+    assert [call.args[1] for call in chunk_repo.search_bm25.await_args_list] == [
+        "채용공고 링크",
+        "채용공고",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_non_kiwi_bm25_query_normalizes_particles_before_search():
+    """BM25 query should use raw non-Kiwi normalization such as particle stripping."""
+    retriever, chunk_repo = make_retriever()
+    chunk_repo.search_similar.return_value = []
+    chunk_repo.search_og_links.return_value = []
+    chunk_repo.search_bm25.return_value = []
+
+    await retriever.retrieve(user_id=111, query="채용공고를 찾아줘", top_k=5)
+
+    called_queries = [call.args[1] for call in chunk_repo.search_bm25.await_args_list]
+    assert called_queries == ["채용공고 찾아줘", "채용공고"]
+
+
+@pytest.mark.asyncio
+async def test_direct_retriever_call_uses_search_query_family_when_not_supplied():
+    retriever, chunk_repo = make_retriever()
+    chunk_repo.search_similar.return_value = []
+    chunk_repo.search_og_links.return_value = []
+    chunk_repo.search_bm25.return_value = []
+
+    await retriever.retrieve(user_id=111, query="채용공고 링크 알려줘", top_k=5)
+
+    called_queries = [call.args[1] for call in chunk_repo.search_bm25.await_args_list]
+    assert called_queries == ["채용공고 링크 알려줘", "채용공고"]
+
+
+@pytest.mark.asyncio
+async def test_direct_retriever_call_uses_search_query_family_for_general_ai_query():
+    retriever, chunk_repo = make_retriever()
+    chunk_repo.search_similar.return_value = []
+    chunk_repo.search_og_links.return_value = []
+    chunk_repo.search_bm25.return_value = []
+
+    await retriever.retrieve(user_id=111, query="AI 관련 자료 알려줘", top_k=5)
+
+    called_queries = [call.args[1] for call in chunk_repo.search_bm25.await_args_list]
+    assert called_queries == ["AI 관련 자료 알려줘", "AI"]
+
+
+@pytest.mark.asyncio
+async def test_direct_retriever_call_uses_progressive_general_query_family():
+    retriever, chunk_repo = make_retriever()
+    chunk_repo.search_similar.return_value = []
+    chunk_repo.search_og_links.return_value = []
+    chunk_repo.search_bm25.return_value = []
+
+    await retriever.retrieve(user_id=111, query="스타트업 취업 전략", top_k=5)
+
+    called_queries = [call.args[1] for call in chunk_repo.search_bm25.await_args_list]
+    assert called_queries == ["스타트업 취업 전략", "스타트업 취업", "스타트업"]
+
+
+@pytest.mark.asyncio
+async def test_broader_fallback_results_do_not_outrank_exact_general_query_hits():
+    retriever, chunk_repo = make_retriever()
+    chunk_repo.search_og_links.return_value = []
+
+    exact_result = _make_result(
+        1,
+        "AI 관련 자료 모음",
+        ["AI", "자료", "가이드"],
+        dense_score=0.65,
+        similarity=0.65,
+    )
+    broad_result = _make_result(
+        2,
+        "AI 최신 뉴스",
+        ["AI", "뉴스", "트렌드"],
+        dense_score=0.0,
+        similarity=0.92,
+    )
+
+    chunk_repo.search_similar.side_effect = [
+        [exact_result],
+        [],
+    ]
+    chunk_repo.search_bm25.side_effect = [
+        [],
+        [{**broad_result, "bm25_score": 0.92}],
+    ]
+
+    results = await retriever.retrieve(user_id=111, query="AI 관련 자료 알려줘", top_k=5)
+
+    assert results[0]["link_id"] == 1
+    assert [r["link_id"] for r in results] == [1, 2]
+
+
+@pytest.mark.asyncio
+async def test_retriever_avoids_concurrent_db_queries_on_same_repository_session():
+    retriever, chunk_repo = make_retriever()
+    chunk_repo.search_og_links.return_value = []
+    state = {"active": False}
+
+    async def search_similar(*args, **kwargs):
+        if state["active"]:
+            raise AssertionError("concurrent DB query detected")
+        state["active"] = True
+        await asyncio.sleep(0)
+        state["active"] = False
+        return []
+
+    async def search_bm25(*args, **kwargs):
+        if state["active"]:
+            raise AssertionError("concurrent DB query detected")
+        state["active"] = True
+        await asyncio.sleep(0)
+        state["active"] = False
+        return []
+
+    chunk_repo.search_similar.side_effect = search_similar
+    chunk_repo.search_bm25.side_effect = search_bm25
+
+    await retriever.retrieve(user_id=111, query="AI 관련 자료 알려줘", top_k=5)

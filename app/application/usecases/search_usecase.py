@@ -1,5 +1,6 @@
 from app.infrastructure.rag.reranker import SimpleReranker
 from app.infrastructure.rag.retriever import HybridRetriever
+from app.application.services.search_query_builder import build_search_queries
 
 
 class SearchUseCase:
@@ -8,6 +9,12 @@ class SearchUseCase:
         self._reranker = reranker
 
     async def execute(self, user_id: int, query: str, top_k: int = 5) -> list[dict]:
-        """retrieve(top_k*2) → rerank(top_k)."""
-        raw_results = await self._retriever.retrieve(user_id, query, top_k * 2)
+        """Search-first retrieval with query normalization fallback."""
+        queries = build_search_queries(query)
+        raw_results = await self._retriever.retrieve(
+            user_id,
+            query,
+            top_k * 2,
+            search_queries=queries,
+        )
         return self._reranker.rerank(raw_results, top_k)
