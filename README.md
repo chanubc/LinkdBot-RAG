@@ -10,7 +10,7 @@
 
 ## Demo
 
-| Link Save & Notion Sync | Hybrid RAG (벡터(Dense) + 키워드(Sparse)) | Knowledge Q&A (`/ask`) |
+| Link Save & Notion Sync | Hybrid RAG 벡터(Dense) + 키워드(Sparse) | Knowledge Q&A (`/ask`) |
 |:-:|:-:|:-:|
 | <img src="docs/assets/screenshots/telegram-save-link-sync.jpg" width="220" alt="링크 저장" /> | <img src="docs/assets/screenshots/telegram-search-results.jpg" width="220" alt="하이브리드 검색" /> | <img src="docs/assets/screenshots/telegram-ask-answer.jpg" width="220" alt="지식 Q&A" /> |
 | 텔레그램에 링크만 보내면 본문 스크랩 → 요약/분석 → 저장 → Notion 동기화까지 한 번에 처리 | 벡터 + 키워드 검색 후 reranking으로 정확도를 높임 | 저장된 링크/메모를 바탕으로 답변을 생성하는 개인 지식 Q&A 흐름 |
