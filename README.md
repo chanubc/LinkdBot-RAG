@@ -12,9 +12,9 @@
 
 <table width="100%">
   <tr>
-    <th width="33.33%">Link Save &amp; Sync</th>
-    <th width="33.33%">Hybrid RAG</th>
-    <th width="33.33%">Knowledge Q&amp;A</th>
+    <th width="33.33%">Link Save &amp; Notion Sync</th>
+    <th width="33.33%">Hybrid RAG (Dense + Sparse)</th>
+    <th width="33.33%">Knowledge Q&amp;A (`/ask`)</th>
   </tr>
   <tr>
     <td width="33.33%"><img src="docs/assets/screenshots/telegram-save-link-sync.jpg" width="100%" alt="Link Save" /></td>
@@ -22,15 +22,15 @@
     <td width="33.33%"><img src="docs/assets/screenshots/telegram-ask-answer.jpg" width="100%" alt="Knowledge Q&amp;A" /></td>
   </tr>
   <tr>
-    <td width="33.33%">본문 스크랩·요약 후 저장 및 Notion 동기화</td>
-    <td width="33.33%">Dense+Sparse 검색 후 reranking 적용</td>
-    <td width="33.33%">저장된 링크·메모 기반 답변 생성</td>
+    <td width="33.33%">본문 스크랩·요약 후 저장하고 Notion까지 자동 동기화</td>
+    <td width="33.33%">Dense+Sparse 검색 후 reranking으로 정확도를 높임</td>
+    <td width="33.33%">저장된 링크·메모를 바탕으로 답변 생성</td>
   </tr>
 </table>
 
 <table width="100%">
   <tr>
-    <th width="33.33%">Weekly Report</th>
+    <th width="33.33%">Proactive Weekly Report</th>
     <th width="33.33%">Dashboard Entry</th>
     <th width="33.33%">Quick Menu</th>
   </tr>
@@ -40,9 +40,9 @@
     <td width="33.33%"><img src="docs/assets/screenshots/telegram-quick-menu.jpg" width="100%" alt="Quick Menu" /></td>
   </tr>
   <tr>
-    <td width="33.33%">drift·reactivation 기반 추천 리포트</td>
-    <td width="33.33%">JWT 매직 링크로 대시보드 이동</td>
-    <td width="33.33%">검색·질문·리포트 빠른 실행</td>
+    <td width="33.33%">drift·reactivation 기반으로 다시 볼 링크를 선제적으로 추천</td>
+    <td width="33.33%">`/dashboard` JWT 매직 링크로 웹 대시보드 이동</td>
+    <td width="33.33%">검색·질문·리포트·대시보드를 버튼으로 빠르게 실행</td>
   </tr>
 </table>
 
