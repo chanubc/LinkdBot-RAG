@@ -22,9 +22,9 @@
     <td width="33.33%"><img src="docs/assets/screenshots/telegram-ask-answer.jpg" width="100%" alt="Knowledge Q&amp;A" /></td>
   </tr>
   <tr>
-    <td width="33.33%">본문 스크랩·요약 후 저장하고 Notion까지 자동 동기화</td>
-    <td width="33.33%">Dense+Sparse 검색 후 reranking으로 정확도를 높임</td>
-    <td width="33.33%">저장된 링크·메모를 바탕으로 답변 생성</td>
+    <td width="33.33%">본문 스크랩·요약 후 Notion DB까지 자동 동기화</td>
+    <td width="33.33%">Dense+sparse retrieval과 reranking으로 관련 링크를 더 안정적으로 찾음</td>
+    <td width="33.33%">저장된 링크와 메모를 바탕으로 근거 기반 답변 생성</td>
   </tr>
 </table>
 
@@ -40,9 +40,50 @@
     <td width="33.33%"><img src="docs/assets/screenshots/telegram-quick-menu.jpg" width="100%" alt="Quick Menu" /></td>
   </tr>
   <tr>
-    <td width="33.33%">drift·reactivation 기반으로 다시 볼 링크를 선제적으로 추천</td>
-    <td width="33.33%">`/dashboard` JWT 매직 링크로 웹 대시보드 이동</td>
-    <td width="33.33%">검색·질문·리포트·대시보드를 버튼으로 빠르게 실행</td>
+    <td width="33.33%">관심사 변화와 reactivation 신호를 바탕으로 다시 볼 링크를 선제적으로 추천</td>
+    <td width="33.33%">`/dashboard` JWT magic link로 웹 dashboard에 안전하게 진입</td>
+    <td width="33.33%">검색·질문·리포트·대시보드 이동을 버튼으로 빠르게 실행</td>
+  </tr>
+</table>
+
+### Notion Knowledge Archive
+
+Telegram에서 저장한 링크와 요약이 Notion DB에서 어떻게 구조화되는지 보여주는 화면입니다.
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/5477af21-1368-43b8-b68a-12758125a396" width="100%" alt="Notion knowledge archive overview" />
+</p>
+
+<p align="center"><sub>저장된 링크, 요약, 메타데이터가 구조화된 knowledge archive</sub></p>
+
+### Dashboard Views
+
+웹 dashboard에서 저장한 지식을 탐색하고 회고하는 화면들입니다.
+
+<table width="100%">
+  <tr>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/ebe04969-ca68-4e8c-94db-1587bf71bd86" width="100%" alt="Dashboard overview screen 1" /></td>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/c83e52c3-5e79-4fc6-aab3-fc179adbef37" width="100%" alt="Dashboard overview screen 2" /></td>
+  </tr>
+  <tr>
+    <td width="50%">저장된 링크와 핵심 지표를 한눈에 보는 dashboard overview</td>
+    <td width="50%">탐색 또는 인사이트 흐름을 보여주는 dashboard view</td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/373a1fe0-0222-4435-8028-d3c77f55f3a3" width="100%" alt="Dashboard overview screen 3" /></td>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/b4dc261a-eb4e-486a-8138-605161ec8030" width="100%" alt="Dashboard overview screen 4" /></td>
+  </tr>
+  <tr>
+    <td width="50%">검색·탐색·지표 확인을 지원하는 dashboard view</td>
+    <td width="50%">관심사 변화나 분석 상세를 보여주는 dashboard view</td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/25a5d5c5-f759-441e-a1ae-86301f364332" width="100%" alt="Dashboard overview screen 5" /></td>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/1490c0d9-00c4-4cdb-8329-6bfc317c3764" width="100%" alt="Dashboard overview screen 6" /></td>
+  </tr>
+  <tr>
+    <td width="50%">재발견과 분석을 보조하는 dashboard view</td>
+    <td width="50%">라이브러리 탐색과 retrieval 보조 화면</td>
   </tr>
 </table>
 
@@ -72,7 +113,7 @@
 
 ### Hybrid RAG Architecture
 
-Dense(벡터) 검색과 Sparse(키워드/FTS) 검색을 함께 수행한 뒤 reranking으로 최종 순서를 정리하는 흐름을 한눈에 보여주는 개념도입니다.
+Dense retrieval은 의미적으로 유사한 문서를 찾는 데 강하고, sparse retrieval은 키워드와 고유명사 같은 정확한 표현 매칭에 강합니다. 둘을 함께 쓰면 한쪽만 사용할 때 놓치기 쉬운 결과를 더 안정적으로 회수할 수 있고, reranking이 최종 문맥 적합도를 다시 정리해 `/search`와 `/ask`의 신뢰도를 높입니다.
 
 ![Hybrid RAG Architecture](docs/assets/hybrid-search.png)
 
