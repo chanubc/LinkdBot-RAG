@@ -380,25 +380,6 @@ Query: 롯데채용공고를
 | **NDCG@5** | 0.4737 | 0.7813 | **0.9415** | +65% | +21% | **+99%** |
 | **신규 케이스 1위** | 0/4 | 0/4 | **4/4** | — | **+100%** | — |
 
-**추가 개선 포인트**
-
-1. **link_id dedupe** — 동일 링크의 여러 chunk 중 최고 점수만 유지
-2. **query variant 생성** — 원문 + 공백 제거 + bi-gram 결합으로 복합어 대응
-3. **substring keyword 매칭** — query token이 keyword 내부에 포함될 때만 허용해 false positive 방지
-
-자세한 설계 배경, variant 전략, 메트릭 해석은 위 Notion 문서를 참고하세요.
-
-### Common Issues
-
-| Issue | Solution |
-|-------|----------|
-| `ModuleNotFoundError: dashboard` | Add `sys.path.insert(0, os.path.dirname(__file__))` to `dashboard/app.py` |
-| `pgvector extension not found` | Install pgvector: `CREATE EXTENSION vector;` in PostgreSQL |
-| `Telegram webhook not responding` | Verify webhook URL is publicly accessible and HTTPS |
-| `OpenAI API errors` | Check API key and rate limits; see [OpenAI docs](https://platform.openai.com/docs) |
-| `Notion sync fails` | Verify Notion OAuth token and page permissions |
-| `Pydantic validation errors` | Check `.env` has all required variables; use `extra="ignore"` in Settings |
-
 더 많은 해결 방법은 [Troubleshooting Guide](docs/troubleshooting/)를 참고하세요.
 
 ---
