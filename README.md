@@ -87,17 +87,6 @@ Telegram에서 저장한 링크와 요약이 Notion DB에서 어떻게 구조화
   </tr>
 </table>
 
-<img width="2672" height="1431" alt="image" src="https://github.com/user-attachments/assets/5477af21-1368-43b8-b68a-12758125a396" />
-
-<img width="1920" height="1032" alt="image" src="https://github.com/user-attachments/assets/ebe04969-ca68-4e8c-94db-1587bf71bd86" />
-
-<img width="1920" height="1032" alt="image" src="https://github.com/user-attachments/assets/c83e52c3-5e79-4fc6-aab3-fc179adbef37" />
-<img width="1920" height="1032" alt="image" src="https://github.com/user-attachments/assets/373a1fe0-0222-4435-8028-d3c77f55f3a3" />
-
-<img width="1920" height="1032" alt="image" src="https://github.com/user-attachments/assets/b4dc261a-eb4e-486a-8138-605161ec8030" />
-<img width="1920" height="1032" alt="image" src="https://github.com/user-attachments/assets/25a5d5c5-f759-441e-a1ae-86301f364332" />
-<img width="1920" height="1032" alt="image" src="https://github.com/user-attachments/assets/1490c0d9-00c4-4cdb-8329-6bfc317c3764" />
-
 
 ---
 
@@ -118,8 +107,6 @@ Dense retrieval은 의미적으로 유사한 문서를 찾는 데 강하고, spa
 ![Hybrid RAG Architecture](docs/assets/hybrid-search.png)
 
 ### Why These Matter Most
-
-제가 보기엔 핵심은 아래 3개예요.
 
 1. **Proactive Agent (drift + reactivation)**  
    이 프로젝트를 “저장 앱”이 아니라 “먼저 챙겨주는 지식 코파일럿”으로 바꾸는 가장 중요한 기능입니다.
