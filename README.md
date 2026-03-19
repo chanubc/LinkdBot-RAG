@@ -86,8 +86,6 @@ Telegram에서 저장한 링크와 요약이 Notion DB에서 어떻게 구조화
     <td width="50%">라이브러리 탐색과 retrieval 보조 화면</td>
   </tr>
 </table>
-
-
 ---
 
 ## Core Features
@@ -327,11 +325,68 @@ LinkdBot-RAG/
 
 ### Hybrid Search Performance Issues
 
-**문제**: 검색 결과가 느리거나 부정확합니다.
+원문 분석 노트: [Hybrid RAG 50→80: Query Normalization + Kiwi Plugin](https://discreet-macaroni-d04.notion.site/Hybrid-RAG-50-80-Query-Normalization-Kiwi-Plugin-325302038605814d86a6deaea094468e?source=copy_link)
 
-**해결**: cutoff 최적화가 적용된 하이브리드 검색 전략을 사용합니다.
+#### 📌 문제상황
 
-자세한 하이브리드 검색 튜닝과 성능 최적화는 [docs/troubleshooting/hybrid-search.md](docs/troubleshooting/hybrid-search.md)를 참고하세요.
+##### 사용자 쿼리의 조사 + 복합어로 인한 검색 실패
+
+**예: "롯데채용공고를 찾아줘"**
+
+```text
+Query: 롯데채용공고를
+       |  복합어 |+| 조사 |
+```
+
+| 레이어 | 상태 | 문제 |
+| --- | --- | --- |
+| **Dense (pgvector)** | ✅ OK | "채용", "공고" 의미는 어느 정도 포착 가능 |
+| **Sparse (FTS)** | ❌ 실패 | "롯데채용공고를"이 단일 토큰으로 잡혀 "채용", "공고" 토큰이 없음 |
+| **Keyword Rescoring** | ❌ 실패 | raw token "롯데채용공고를" ≠ "롯데" keyword → 순위 상승 불가 |
+
+**결과**: Dense 신호만으로는 부족해 상관없는 문서도 상위에 노출될 수 있습니다.
+
+#### 🔧 해결방안 (4가지)
+
+| 방법 | 핵심 아이디어 | 효과 |
+| --- | --- | --- |
+| **1. LLM 기반 Keyword Mapping** | 링크 저장 시 LLM이 핵심 keyword를 추출해 `keywords` 필드에 저장 | "채용", "공고", "롯데" 같은 핵심 단어를 안정적으로 매칭 |
+| **2. Title Fallback** | keyword 매칭이 안 되면 제목에서 substring 검색 | keyword 추출 실패 문서도 제목으로 부분 복구 |
+| **3. Query Normalization** | 조사 제거, compact, bi-gram, morpheme 변형 생성 | 복합어/조사 때문에 실패하던 쿼리를 분해해 매칭 가능 |
+| **4. Best Variant Selection** | 모든 쿼리 변형 중 overlap이 가장 높은 variant를 선택 | 어느 변형이든 하나만 잘 맞아도 안정적으로 점수 반영 |
+
+#### 📊 성과
+
+##### 실제 사용자 쿼리 10개 벤치마크
+
+| 지표 | Before | Query Normalization + Keyword Rescoring | Kiwi Plugin: Sparse Morpheme FTS |
+| --- | --- | --- | --- |
+| **Top-1 정확도** | 50% (5/10) | **80% (8/10)** | **80% (8/10)** |
+| **MRR** | 0.65 | **0.85** | **0.85** |
+| **P@5** | 0.46 | **0.52** | **0.52** |
+| **NDCG@5** | 0.5758 | **0.7523** | **0.7523** |
+
+**핵심 해석**
+
+- **Phase A (Query Normalization + Keyword Rescoring)** 가 체감 성능 개선의 대부분을 담당
+- **Kiwi Plugin (Sparse morpheme FTS)** 은 이 벤치마크 기준 추가 기여가 거의 없었음
+- 결과적으로 현재 Hybrid RAG 파이프라인에서는 **Dense + Keyword layer** 가 핵심 개선 포인트였음
+
+##### 추가 개선 (2026-03-11)
+
+| 지표 | Dense-only | PR#68 | Today | PR#68↑ | Today 추가↑ | 누적↑ |
+| --- | --- | --- | --- | --- | --- | --- |
+| **MRR** | 0.2952 | 0.7357 | **0.9286** | +149% | +26% | **+214%** |
+| **NDCG@5** | 0.4737 | 0.7813 | **0.9415** | +65% | +21% | **+99%** |
+| **신규 케이스 1위** | 0/4 | 0/4 | **4/4** | — | **+100%** | — |
+
+**추가 개선 포인트**
+
+1. **link_id dedupe** — 동일 링크의 여러 chunk 중 최고 점수만 유지
+2. **query variant 생성** — 원문 + 공백 제거 + bi-gram 결합으로 복합어 대응
+3. **substring keyword 매칭** — query token이 keyword 내부에 포함될 때만 허용해 false positive 방지
+
+자세한 설계 배경, variant 전략, 메트릭 해석은 위 Notion 문서를 참고하세요.
 
 ### Common Issues
 
