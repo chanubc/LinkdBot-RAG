@@ -103,9 +103,9 @@ Telegram에서 저장된 링크가 Notion DB에서 어떻게 구조화되는지 
   - Telegram에서 저장한 콘텐츠가 회고와 재사용이 가능한 지식 자산으로 정리됨
 
 레이아웃:
-- HTML table 기반 균등 열 레이아웃
-- 이미지 수와 종횡비에 따라 2열 또는 3열
-- 각 이미지 캡션은 한 줄 내외
+- 이번 작업에서는 **단일 이미지 블록**으로 고정한다.
+- HTML table 또는 일반 이미지 삽입 중 더 단순하고 안정적인 방식을 사용한다.
+- 캡션은 한 줄 내외로 유지한다.
 
 #### 블록 C — Dashboard Screenshot Gallery (신규)
 사용자가 제공한 웹 Dashboard 스크린샷들을 별도 갤러리로 추가한다.
@@ -144,18 +144,18 @@ Telegram에서 저장된 링크가 Notion DB에서 어떻게 구조화되는지 
 ### B. Dashboard gallery
 현재 사용자 제공 기준으로 **Dashboard screenshot 6장**을 사용한다.
 
-| Source | Target repo path | 역할 |
-|---|---|---|
-| `https://github.com/user-attachments/assets/ebe04969-ca68-4e8c-94db-1587bf71bd86` | `docs/assets/screenshots/dashboard-overview-1.png` | Dashboard overview / summary view |
-| `https://github.com/user-attachments/assets/c83e52c3-5e79-4fc6-aab3-fc179adbef37` | `docs/assets/screenshots/dashboard-overview-2.png` | Dashboard secondary overview / list or insight view |
-| `https://github.com/user-attachments/assets/373a1fe0-0222-4435-8028-d3c77f55f3a3` | `docs/assets/screenshots/dashboard-overview-3.png` | Dashboard exploration / metrics view |
-| `https://github.com/user-attachments/assets/b4dc261a-eb4e-486a-8138-605161ec8030` | `docs/assets/screenshots/dashboard-overview-4.png` | Dashboard trend / insight detail view |
-| `https://github.com/user-attachments/assets/25a5d5c5-f759-441e-a1ae-86301f364332` | `docs/assets/screenshots/dashboard-overview-5.png` | Dashboard discover / analysis view |
-| `https://github.com/user-attachments/assets/1490c0d9-00c4-4cdb-8329-6bfc317c3764` | `docs/assets/screenshots/dashboard-overview-6.png` | Dashboard library / retrieval support view |
+| Source | Target repo path | 역할 | Caption 방향 | Alt text 방향 |
+|---|---|---|---|---|
+| `https://github.com/user-attachments/assets/ebe04969-ca68-4e8c-94db-1587bf71bd86` | `docs/assets/screenshots/dashboard-overview-1.png` | Dashboard overview / summary view | 저장된 링크와 핵심 지표를 한눈에 보는 dashboard overview | `Dashboard overview screen 1` |
+| `https://github.com/user-attachments/assets/c83e52c3-5e79-4fc6-aab3-fc179adbef37` | `docs/assets/screenshots/dashboard-overview-2.png` | Dashboard secondary overview / list or insight view | 탐색 또는 인사이트 흐름을 보여주는 dashboard view | `Dashboard overview screen 2` |
+| `https://github.com/user-attachments/assets/373a1fe0-0222-4435-8028-d3c77f55f3a3` | `docs/assets/screenshots/dashboard-overview-3.png` | Dashboard exploration / metrics view | 검색·탐색·지표 확인을 지원하는 dashboard view | `Dashboard overview screen 3` |
+| `https://github.com/user-attachments/assets/b4dc261a-eb4e-486a-8138-605161ec8030` | `docs/assets/screenshots/dashboard-overview-4.png` | Dashboard trend / insight detail view | 관심사 변화나 분석 상세를 보여주는 dashboard view | `Dashboard overview screen 4` |
+| `https://github.com/user-attachments/assets/25a5d5c5-f759-441e-a1ae-86301f364332` | `docs/assets/screenshots/dashboard-overview-5.png` | Dashboard discover / analysis view | 재발견과 분석을 보조하는 dashboard view | `Dashboard overview screen 5` |
+| `https://github.com/user-attachments/assets/1490c0d9-00c4-4cdb-8329-6bfc317c3764` | `docs/assets/screenshots/dashboard-overview-6.png` | Dashboard library / retrieval support view | 라이브러리 탐색과 retrieval 보조 화면 | `Dashboard overview screen 6` |
 
 구현 메모:
-- Dashboard 캡션은 구현 시 실제 화면 내용을 보고 더 정확한 이름으로 다듬을 수 있다.
-- 다만 README 구조상 6장을 모두 포함하는 것은 확정 범위다.
+- 위 Caption/Alt text 방향을 기준으로 README 문구를 확정한다.
+- README 구조상 6장을 모두 포함하는 것은 확정 범위다.
 
 ---
 
@@ -256,7 +256,10 @@ Telegram에서 저장된 링크가 Notion DB에서 어떻게 구조화되는지 
 6. Dashboard 갤러리는 기본적으로 2열을 사용하고, 3열은 각 이미지의 핵심 UI 텍스트와 카드 구분이 충분히 읽힐 때만 허용된다.
 7. Hybrid RAG 설명 수정은 Demo 카드 캡션과 `### Hybrid RAG Architecture` 아래 설명 문단에만 반영된다.
 8. Hybrid RAG 설명이 “구성 나열”이 아니라 “검색 품질에 왜 중요한지”를 설명한다.
-9. README 전체 톤은 여전히 기술 문서 스타일을 유지한다.
+9. GitHub README 렌더 기준으로 모든 이미지 경로가 정상 동작한다.
+10. GitHub README 렌더 기준으로 HTML table 또는 이미지 블록이 깨지지 않는다.
+11. 2열 또는 3열 배치 여부와 무관하게 Dashboard 각 이미지의 핵심 UI 텍스트와 카드 구분이 식별 가능하다.
+12. README 전체 톤은 여전히 기술 문서 스타일을 유지한다.
 
 ---
 
@@ -267,10 +270,10 @@ Telegram에서 저장된 링크가 Notion DB에서 어떻게 구조화되는지 
 - 3열이 너무 작으면 2열로 전환
 - HTML table 폭을 고정적으로 맞추되, readability를 우선
 
-### 리스크 2 — Notion/Dashboard 자산 경로 미정
+### 리스크 2 — 외부 첨부 이미지를 로컬 asset으로 옮기는 과정의 실수
 대응:
-- 구현 전에 로컬 asset naming을 먼저 확정
-- README 본문 수정은 실제 asset 저장과 함께 진행
+- 이미 확정된 target repo path를 그대로 사용한다.
+- README 수정 전 각 파일이 지정 경로에 저장됐는지 확인한다.
 
 ### 리스크 3 — Demo 섹션 과밀화
 대응:
