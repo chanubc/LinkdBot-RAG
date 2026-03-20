@@ -1,4 +1,4 @@
-# LinkdBot-RAG
+# Alfredo
 
 > Proactive AI Knowledge Copilot — Store user-shared links, convert to structured knowledge, detect interest drift, send proactive insights
 
