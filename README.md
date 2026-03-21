@@ -6,6 +6,18 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-Async-green)](https://fastapi.tiangolo.com/)
 [![MIT License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
+<table>
+  <tr>
+    <td valign="middle">
+      <strong>Proactive AI Knowledge Copilot</strong><br />
+      Store user-shared links, convert to structured knowledge, detect interest drift, send proactive insights
+    </td>
+    <td valign="middle" align="right">
+      <img src="docs/assets/alfredo_log.png" alt="Alfredo logo" width="96" />
+    </td>
+  </tr>
+</table>
+
 ---
 
 ## Demo
