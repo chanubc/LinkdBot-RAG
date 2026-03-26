@@ -8,6 +8,7 @@ setup_logging()
 
 from app.api.v1.endpoints import auth, dashboard, search, webhook
 from app.api.dependencies.auth_di import get_telegram_client
+from app.core.config import settings
 from app.infrastructure.scheduler import create_scheduler
 
 
@@ -15,6 +16,14 @@ from app.infrastructure.scheduler import create_scheduler
 async def lifespan(app: FastAPI):
     # Startup
     telegram_repo = get_telegram_client()
+    try:
+        await telegram_repo.set_webhook(settings.TELEGRAM_WEBHOOK_URL)
+        logger.info("Telegram webhook registered to %s", settings.TELEGRAM_WEBHOOK_URL)
+    except Exception:
+        logger.exception(
+            "Failed to register Telegram webhook to %s",
+            settings.TELEGRAM_WEBHOOK_URL,
+        )
     success = await telegram_repo.register_commands()
     if success:
         logger.info("✅ Telegram bot commands registered successfully")
