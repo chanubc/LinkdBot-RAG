@@ -60,3 +60,6 @@ tmpclaude-*
 .omx/
 .omc/
 .superpowers/
+
+# GitNexus local index
+.gitnexus/
