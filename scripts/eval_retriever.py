@@ -484,11 +484,11 @@ async def evaluate_real(user_id: int, k: int = 5) -> None:
     from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
     from sqlalchemy.orm import sessionmaker
     from app.infrastructure.rag.retriever import (
-        HybridRetriever, _rescore_with_keywords, _dedupe_by_link,
+        _rescore_with_keywords, _dedupe_by_link,
         _RECALL_MULTIPLIER, _MIN_RECALL_K, _MAX_RECALL_K,
     )
     from app.infrastructure.repository.chunk_repository import ChunkRepository
-    from app.infrastructure.ai.openai_adapter import OpenAIAdapter
+    from app.infrastructure.llm.openai_client import OpenAIRepository
     from app.core.config import settings
 
     if not REAL_EVAL_QUERIES:
@@ -501,7 +501,7 @@ async def evaluate_real(user_id: int, k: int = 5) -> None:
 
     async with async_session() as session:
         chunk_repo = ChunkRepository(session)
-        openai_adapter = OpenAIAdapter()
+        openai_adapter = OpenAIRepository()
 
         print(f"실제 DB 평가 시작 (user_id={user_id}, K={k})")
         for case in REAL_EVAL_QUERIES:
@@ -509,7 +509,12 @@ async def evaluate_real(user_id: int, k: int = 5) -> None:
             relevant_urls = set(case.get("relevant_urls", []))
             [embedding] = await openai_adapter.embed([query])
             recall_k = min(max(k * _RECALL_MULTIPLIER, _MIN_RECALL_K), _MAX_RECALL_K)
-            raw = await chunk_repo.search_similar(user_id, embedding, recall_k, query_text=query)
+            raw = await chunk_repo.search_similar(
+                user_id,
+                embedding,
+                recall_k,
+                query_texts=[query],
+            )
 
             before_urls = [r["url"] for r in sorted(raw, key=lambda x: x.get("dense_score", 0), reverse=True)]
             after_urls = [r["url"] for r in _dedupe_by_link(_rescore_with_keywords(raw, query))]
