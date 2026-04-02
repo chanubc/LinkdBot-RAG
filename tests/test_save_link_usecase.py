@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
+from unittest.mock import patch
 
 import pytest
 
@@ -141,6 +142,43 @@ async def test_semantic_summary_stored_in_db_and_sent_to_notion(
     )
     telegram.send_link_saved_message.assert_awaited_once()
     assert telegram.send_link_saved_message.await_args.kwargs["notion_url"] == notion_page_url
+
+
+@pytest.mark.asyncio
+async def test_notion_save_failure_is_logged_and_completion_continues(
+    save_link_usecase,
+    save_link_dependencies,
+):
+    user_repo = save_link_dependencies["user_repo"]
+    link_repo = save_link_dependencies["link_repo"]
+    openai = save_link_dependencies["openai"]
+    scraper = save_link_dependencies["scraper"]
+    telegram = save_link_dependencies["telegram"]
+    notion = save_link_dependencies["notion"]
+
+    link_repo.exists_by_user_and_url.return_value = False
+    scraper.scrape.return_value = ("short description", "og", "short description", "Title")
+    openai.analyze_content.return_value = ContentAnalysis(
+        title="Title",
+        semantic_summary="semantic summary",
+        category="Dev",
+        keywords=["a", "b", "c", "d", "e"],
+    )
+    openai.embed.return_value = [[0.1, 0.2]]
+    link_repo.save_link.return_value = SimpleNamespace(id=42)
+    user_repo.get_decrypted_token.return_value = "secret"
+    user_repo.get_by_telegram_id.return_value = SimpleNamespace(notion_database_id="db-123")
+    notion.create_database_entry.side_effect = RuntimeError("notion write failed")
+
+    with patch("app.application.usecases.save_link_usecase.logger.exception") as mock_exception:
+        await save_link_usecase.execute(telegram_id=111, url="https://example.com/post", memo=None)
+
+    mock_exception.assert_called_once()
+    assert "telegram_id=111" in mock_exception.call_args.args[0]
+    assert "db-123" in mock_exception.call_args.args[0]
+    telegram.send_link_saved_message.assert_awaited_once()
+    assert telegram.send_link_saved_message.await_args.kwargs["notion_url"] is None
+    assert telegram.send_message.await_args_list[-1].args == (111, "⚠️ Notion 저장 실패: notion write failed")
 
 
 @pytest.mark.asyncio

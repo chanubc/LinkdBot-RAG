@@ -3,14 +3,15 @@ import json
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.repositories.i_chunk_repository import IChunkRepository
-from app.domain.repositories.i_link_repository import ILinkRepository
 from app.application.ports.ai_analysis_port import AIAnalysisPort
 from app.application.ports.notion_port import NotionPort
 from app.application.ports.scraper_port import ScraperPort
 from app.application.ports.telegram_port import TelegramPort
+from app.core.logger import logger
+from app.domain.repositories.i_chunk_repository import IChunkRepository
+from app.domain.repositories.i_link_repository import ILinkRepository
 from app.domain.repositories.i_user_repository import IUserRepository
-from app.utils.text import split_chunks, split_markdown
+from app.utils.text import split_markdown
 from app.utils.url import normalize_url
 
 
@@ -36,20 +37,14 @@ class SaveLinkUseCase:
         self._notion = notion
 
     async def execute(self, telegram_id: int, url: str, memo: str | None = None) -> None:
-        """링크 처리 파이프라인 (BackgroundTask로 비동기 실행).
-
-        웹훅은 이 함수 호출 즉시 응답하므로, 모든 사용자 피드백은 이 함수 내에서 관리됨.
-        """
         url = normalize_url(url)
         try:
             if await self._link_repo.exists_by_user_and_url(telegram_id, url):
                 await self._telegram.send_message(telegram_id, "⚠️ 이미 저장된 링크입니다.")
                 return
 
-            # 0. 즉시 피드백 (사용자에게 처리 시작 알림)
             await self._telegram.send_message(telegram_id, "🔗 링크 내용 스크랩을 시작했어요.")
 
-            # 1. Scrape
             scraped_content, content_source, og_description, og_title = _normalize_scrape_result(
                 await self._scraper.scrape(url)
             )
@@ -58,21 +53,17 @@ class SaveLinkUseCase:
                 content = f"{content}\n\n{memo}"
             await self._telegram.send_message(telegram_id, "✅ 링크 내용 스크랩이 완료되었어요.")
 
-            # 2. Analyze
             await self._telegram.send_message(telegram_id, "🤖 AI가 내용을 분석하고 있어요...")
             analysis = await self._openai.analyze_content(content)
             title: str = og_title or analysis.title or url
-            description: str = og_description           # og:description (Notion Summary 필드)
+            description: str = og_description
             category: str = analysis.category
             keywords: list[str] = analysis.keywords
             keywords_json = json.dumps(keywords, ensure_ascii=False)
 
-            # DB/임베딩/Notion 본문 공용: 문장형 요약 (고유명사/맥락 보존)
             summary: str = analysis.semantic_summary or description
             ai_summary: str = summary
 
-            # 2-1. Summary + chunks 임베딩을 1회 호출로 배치 처리
-            # OG fallback은 메타데이터만 있어 청킹 불필요 (description ~200자)
             if content_source == "jina":
                 raw_chunks = split_markdown(content)
             else:
@@ -96,7 +87,6 @@ class SaveLinkUseCase:
                     chunk_start_idx = 1
                 chunk_embeddings = batched_embeddings[chunk_start_idx:]
 
-            # 3. DB 저장
             await self._user_repo.ensure_exists(telegram_id)
             link = await self._link_repo.save_link(
                 user_id=telegram_id,
@@ -113,14 +103,11 @@ class SaveLinkUseCase:
                 await self._telegram.send_message(telegram_id, "⚠️ 이미 저장된 링크입니다.")
                 return
 
-            # 4. chunk 저장
             if raw_chunks and chunk_embeddings:
                 await self._chunk_repo.save_chunks(link.id, list(zip(raw_chunks, chunk_embeddings)))
 
-            # 5. 단일 커밋
             await self._db.commit()
 
-            # 6. Notion 저장 (optional, non-fatal)
             notion_url = await self._save_to_notion(
                 telegram_id=telegram_id,
                 title=title,
@@ -132,7 +119,6 @@ class SaveLinkUseCase:
                 memo=memo,
             )
 
-            # 7. 완료 알림
             await self._telegram.send_link_saved_message(
                 chat_id=telegram_id,
                 text=_build_done_message(title, category, keywords, summary),
@@ -155,7 +141,6 @@ class SaveLinkUseCase:
         url: str | None,
         memo: str | None,
     ) -> str:
-        """Notion 저장. 성공 시 page URL 반환, 실패 시 빈 문자열."""
         token = await self._user_repo.get_decrypted_token(telegram_id)
         user = await self._user_repo.get_by_telegram_id(telegram_id)
         if not token or not user or not user.notion_database_id:
@@ -173,6 +158,9 @@ class SaveLinkUseCase:
                 memo=memo,
             )
         except Exception as exc:
+            logger.exception(
+                f"Notion save failed (telegram_id={telegram_id}, database_id={user.notion_database_id}, url={url}): {exc}"
+            )
             await self._telegram.send_message(
                 telegram_id, f"⚠️ Notion 저장 실패: {html.escape(str(exc)[:200])}"
             )

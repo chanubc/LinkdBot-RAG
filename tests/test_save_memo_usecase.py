@@ -50,7 +50,7 @@ async def test_save_memo_forwards_child_page_url_to_completion_message(
         title=memo[:50],
         category="Memo",
         keywords=[],
-        summary="",
+        description="",
         url=None,
         memo=memo,
     )

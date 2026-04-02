@@ -1,32 +1,20 @@
-"""Jina Reader 기반 스크래퍼 — Markdown 전문 추출.
+"""Jina Reader based scraper with OG fallback."""
 
-Jina Reader API: https://r.jina.ai/{url}
-Bearer 토큰 없이도 기본 동작하나, API 키 있으면 Rate Limit 완화.
-실패 시 OG 메타태그 기반 ScraperRepository로 폴백.
-"""
 import httpx
 
 from app.application.ports.scraper_port import ScraperPort
-from app.infrastructure.external.scraper_client import ScraperRepository
-
 from app.core.logger import logger
+from app.infrastructure.external.scraper_client import ScraperRepository
 
 JINA_BASE = "https://r.jina.ai/"
 
 
 class JinaReaderAdapter(ScraperPort):
-    """Jina Reader로 Markdown 전문 추출. 실패 시 OG 스크래퍼로 폴백."""
-
     def __init__(self, api_key: str | None = None) -> None:
         self._api_key = api_key
         self._fallback = ScraperRepository()
 
     async def scrape(self, url: str) -> tuple[str, str, str, str]:
-        """Jina Reader로 콘텐츠 추출.
-
-        Returns:
-            (content, "jina", "", "") 성공 시, 실패 시 폴백 ScraperRepository 결과 반환.
-        """
         headers = {
             "Accept": "text/markdown",
             "X-Return-Format": "markdown",
@@ -43,5 +31,15 @@ class JinaReaderAdapter(ScraperPort):
                     raise ValueError("Jina Reader returned empty content")
                 return content, "jina", "", ""
         except Exception as exc:
-            logger.warning(f"Jina Reader failed for {url} ({exc}), falling back to OG scraper")
+            logger.warning(
+                f"Jina Reader failed for {url} ({_format_jina_error(exc)}), falling back to OG scraper"
+            )
             return await self._fallback.scrape(url)
+
+
+def _format_jina_error(exc: Exception) -> str:
+    if isinstance(exc, httpx.HTTPStatusError):
+        response = exc.response
+        body = response.text.replace("\n", " ").strip()[:200]
+        return f"status={response.status_code}, body={body}"
+    return str(exc)
