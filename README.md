@@ -396,6 +396,51 @@ Query: 롯데채용공고를
 
 ---
 
+### Proactive Rediscovery Issues
+
+원문 분석 노트: [Proactive Agent - Drift & Reactivation](https://www.notion.so/336302038605817d9d7bf956250939d2)
+
+#### 📌 문제상황
+
+- 저장된 링크가 다시 읽히지 않아 지식이 죽은 북마크로 남음
+- 최신순/unread 기준만으로는 지금 다시 봐야 할 링크를 고르기 어려움
+
+#### 🔧 해결방안
+
+- `Interest Drift`로 최근 관심사 변화 감지
+- `Reactivation Score`로 다시 볼 링크 우선순위 계산
+- `Weekly Report`로 proactive rediscovery loop 자동화
+
+#### 📊 성과
+
+- 운영 로그/대시보드 기준 읽음률 **1% → 9%**
+- 저장형 서비스에서 먼저 챙겨주는 proactive copilot 경험으로 확장
+
+---
+
+### Karpathy-style Retrieval AutoResearch
+
+원문 분석 노트: [Karpathy-style Retrieval AutoResearch](https://www.notion.so/33630203860581f5b744fca984f8a5cb)
+
+#### 📌 문제상황
+
+- retrieval 튜닝이 수작업 중심이라 좋은 조합을 누적적으로 판단하기 어려움
+- baseline과 reject history가 없으면 같은 실험을 반복하게 됨
+
+#### 🔧 해결방안
+
+- `prepare.py / train.py / program.md` 기반 bounded 실험 루프 구성
+- accepted baseline, reject history, artifact를 자동으로 축적
+- dense/sparse 비율과 retrieval parameter를 fingerprint로 관리
+
+#### 📊 성과
+
+- **Top-1 Accuracy 66.7% → 100%**
+- **MRR 0.8333 → 1.0**
+- quality를 유지하면서 latency **13.21ms → 9.70ms (-26.5%)**
+
+---
+
 ## Tech Stack
 
 | Category | Technology |
